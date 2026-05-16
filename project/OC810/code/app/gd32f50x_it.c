@@ -36,6 +36,7 @@ OF SUCH DAMAGE.
 #include "FreeRTOS.h"
 #include "task.h"
 #include "my_log.h"
+#include "timer_driver.h"
 
 #define SRAM_ECC_ERROR_HANDLE(s)    do{}while(1)
 
@@ -155,3 +156,142 @@ void DebugMon_Handler(void)
     \note       This handler is implemented by FreeRTOS port layer
 */
 // SysTick_Handler is handled by FreeRTOS port
+
+/*********************************************************************
+ * Timer 中断服务函数
+ *
+ * 设计说明：
+ *   1. 每个 TIMER 独立实现 ISR，检查 UPDATE 中断标志
+ *   2. 清除中断标志后，调用 DRV_TIMER_ISR_CALLBACK 宏执行回调
+ *   3. 保持标准项目架构（ISR 在 it.c 中）
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief   TIMER0 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER0_UP_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER0, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER0, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_0);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER1 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER1_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER1, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER1, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_1);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER2 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER2_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER2, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER2, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_2);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER3 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER3_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER3, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER3, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_3);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER4 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER4_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER4, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER4, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_4);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER5 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER5_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER5, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER5, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_5);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER6 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER6_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER6, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER6, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_6);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER7 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER7_UP_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER7, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER7, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_7);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER15 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER15_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER15, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER15, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_15);
+    }
+}
+
+/*********************************************************************
+ * @brief   TIMER16 UPDATE中断服务函数
+ * @note    检查并清除UPDATE中断标志，执行UPDATE回调函数
+ *********************************************************************/
+void TIMER16_IRQHandler(void)
+{
+    if(SET == timer_interrupt_flag_get(TIMER16, TIMER_INT_FLAG_UP))
+    {
+        timer_interrupt_flag_clear(TIMER16, TIMER_INT_FLAG_UP);
+        drv_timer_run_update_callback(DRV_TIMER_16);
+    }
+}

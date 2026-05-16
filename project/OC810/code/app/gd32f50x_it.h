@@ -56,4 +56,16 @@ void DebugMon_Handler(void);
 // void PendSV_Handler(void);      // Handled by FreeRTOS
 // void SysTick_Handler(void);     // Handled by FreeRTOS
 
+/* Timer UPDATE interrupt handlers */
+void TIMER0_UP_IRQHandler(void);
+void TIMER1_IRQHandler(void);
+void TIMER2_IRQHandler(void);
+void TIMER3_IRQHandler(void);
+void TIMER4_IRQHandler(void);
+void TIMER5_IRQHandler(void);
+void TIMER6_IRQHandler(void);
+void TIMER7_UP_IRQHandler(void);
+void TIMER15_IRQHandler(void);
+void TIMER16_IRQHandler(void);
+
 #endif /* GD32F50X_IT_H */
