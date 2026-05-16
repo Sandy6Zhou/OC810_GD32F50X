@@ -141,7 +141,7 @@ typedef enum {
     MY_TIMER_ID_MAX                             // 定时器ID最大值
 } my_timer_id_e;
 
-typedef void (*my_timer_callback_t)(my_timer_id_e timer_id);  // 定时器回调
+typedef void (*my_timer_callback_t)(TimerHandle_t timer_handle);  // 定时器回调
 ```
 
 ---
@@ -425,9 +425,12 @@ int32_t my_timer_create(my_timer_id_e timer_id, my_timer_callback_t callback,
 
 **使用示例：**
 ```c
-// 回调函数定义（通过timer_id区分不同定时器）
-void my_timer_callback(my_timer_id_e timer_id)
+// 回调函数定义（直接接收TimerHandle_t）
+void my_timer_callback(TimerHandle_t timer_handle)
 {
+    // 获取timer_id
+    my_timer_id_e timer_id = (my_timer_id_e)(uint32_t)pvTimerGetTimerID(timer_handle);
+
     switch (timer_id) {
         case MY_TIMER_ID_ONE_MINUTE:
             // 1分钟定时处理
