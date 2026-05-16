@@ -514,6 +514,7 @@ int32_t my_msg_queue_reset(my_msg_queue_t queue)
  * 定时器管理接口实现
  *********************************************************************/
 
+#if (MY_OS_TIMER_BRIDGE_ENABLE == 1)
 /*********************************************************************
  * @brief FreeRTOS定时器到期回调函数（内部使用）
  * @param timer FreeRTOS定时器句柄
@@ -531,6 +532,7 @@ static void my_timer_expiry_callback(TimerHandle_t timer)
         user_callback((my_timer_handle_t)timer);
     }
 }
+#endif
 
 /*********************************************************************
  * @brief 创建定时器
@@ -564,11 +566,19 @@ int32_t my_timer_create(my_timer_id_e timer_id, my_timer_callback_t callback,
     /* 转换周期 */
     period_ticks = pdMS_TO_TICKS(period_ms);
 
-    /* 创建FreeRTOS定时器，通过pvTimerID传递用户回调，使用桥接函数保证类型安全 */
+#if (MY_OS_TIMER_BRIDGE_ENABLE == 1)
+    /* 方案A：使用桥接函数（推荐）- 100%解耦，应用层不依赖FreeRTOS */
     timer_handle = xTimerCreate("Timer", period_ticks,
                                 (period_ms > 0) ? pdTRUE : pdFALSE,
                                 (void *)callback,  /* 用户回调通过pvTimerID传递 */
-                                my_timer_expiry_callback);
+                                my_timer_expiry_callback);  /* 桥接函数 */
+#else
+    /* 方案B：直接传递用户回调（零开销，但暴露FreeRTOS类型给应用层） */
+    timer_handle = xTimerCreate("Timer", period_ticks,
+                                (period_ms > 0) ? pdTRUE : pdFALSE,
+                                NULL,  /* 不传递用户数据 */
+                                (TimerCallbackFunction_t)callback);  /* 强制类型转换 */
+#endif
     if (timer_handle == NULL)
     {
         MY_OS_LOGE("Failed to create timer %d", timer_id);
