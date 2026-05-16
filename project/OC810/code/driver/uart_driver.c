@@ -40,6 +40,10 @@ typedef struct {
     SemaphoreHandle_t tx_mutex;         /**< 发送互斥锁 */
     uart_context_t  context;            /**< 挂起时的现场保存 */
     uint16_t        dma_rx_len;         /**< DMA接收数据长度 */
+    uint16_t        rx_write_index;     /**< rx_buf写指针（中断中使用） */
+    uint16_t        rx_read_index;      /**< rx_buf读指针（应用层使用） */
+    uint8_t         rx_mode;            /**< 接收模式标识（注册时确定） */
+    uint8_t         irq_enabled;        /**< 中断使能标志（注册时确定） */
 } uart_ctrl_t;
 
 /*********************************************************************
@@ -356,16 +360,40 @@ int uart_register(const uart_config_t *config)
     /* 保存配置参数 */
     memcpy(&ctrl->config, config, sizeof(uart_config_t));
 
-    /* 创建发送互斥锁 */
-    ctrl->tx_mutex = xSemaphoreCreateMutex();
-    if (ctrl->tx_mutex == NULL)
+    /* 初始化接收模式标识 */
+    if (config->use_dma_rx == true)
     {
-        UART_LOG_ERROR("Failed to create TX mutex for port %d", port);
-        return -1;
+        ctrl->rx_mode = (config->use_ringbuf == true) ? UART_RX_MODE_DMA_RINGBUF : UART_RX_MODE_DMA_RXBUF;
+    }
+    else
+    {
+        ctrl->rx_mode = (config->use_ringbuf == true) ? UART_RX_MODE_NODMA_RINGBUF : UART_RX_MODE_NODMA_RXBUF;
     }
 
-    /* 断言检查：互斥锁创建必须成功 */
-    UART_ASSERT(ctrl->tx_mutex != NULL);
+    /* 初始化中断使能标志 */
+    ctrl->irq_enabled = UART_IRQ_RBNE | UART_IRQ_ERR;  /* RXNE和ERR总是使能 */
+    if (config->use_idle == true)
+    {
+        ctrl->irq_enabled |= UART_IRQ_IDLE;
+    }
+
+    /* 根据配置创建发送互斥锁 */
+    if (config->use_tx_mutex == true)
+    {
+        ctrl->tx_mutex = xSemaphoreCreateMutex();
+        if (ctrl->tx_mutex == NULL)
+        {
+            UART_LOG_ERROR("Failed to create TX mutex for port %d", port);
+            return -1;
+        }
+
+        UART_LOG_DEBUG("TX mutex created for port %d", port);
+    }
+    else
+    {
+        ctrl->tx_mutex = NULL;
+        UART_LOG_DEBUG("TX mutex disabled for port %d", port);
+    }
 
     /* 初始化状态 */
     ctrl->state = UART_STATE_INIT;
@@ -486,16 +514,113 @@ int uart_deinit(uart_port_e port)
  *********************************************************************/
 int uart_send(uart_port_e port, const uint8_t *data, uint16_t len)
 {
+    uint32_t usart_base;
+    uart_ctrl_t *ctrl;
+    int send_len = 0;
+    uint16_t i;
+
     /* 断言检查：参数合法性 */
     UART_ASSERT(port < UART_PORT_MAX);
     UART_ASSERT(data != NULL);
     UART_ASSERT(len > 0);
 
-    /* TODO: 第4步实现 */
-    (void)port;
-    (void)data;
-    (void)len;
-    return -1;
+    /* 参数校验 */
+    if (port >= UART_PORT_MAX)
+    {
+        UART_LOG_ERROR("Invalid UART port: %d", port);
+        return -1;
+    }
+
+    if (data == NULL || len == 0)
+    {
+        UART_LOG_ERROR("Invalid send parameter");
+        return -1;
+    }
+
+    ctrl = &s_uart_ctrl[port];
+
+    /* 状态检查：只有活跃状态才能发送 */
+    if (ctrl->state != UART_STATE_ACTIVE)
+    {
+        UART_LOG_WARN("UART port %d not active, state=%d", port, ctrl->state);
+        return -1;
+    }
+
+    usart_base = s_usart_base[port];
+
+    /* 如果启用了互斥锁，获取互斥锁（线程安全） */
+    if (ctrl->tx_mutex != NULL)
+    {
+        /* 使用超时机制，避免永久阻塞 */
+#if UART_TX_MUTEX_TIMEOUT_MS > 0
+        if (xSemaphoreTake(ctrl->tx_mutex, pdMS_TO_TICKS(UART_TX_MUTEX_TIMEOUT_MS)) != pdTRUE)
+        {
+            UART_LOG_ERROR("TX mutex timeout for port %d", port);
+            return -1;
+        }
+#else
+        if (xSemaphoreTake(ctrl->tx_mutex, portMAX_DELAY) != pdTRUE)
+        {
+            UART_LOG_ERROR("Failed to take TX mutex for port %d", port);
+            return -1;
+        }
+#endif
+    }
+
+    /* 判断是否启用DMA发送 */
+    if (ctrl->config.use_dma_tx == true)
+    {
+        /* TODO: DMA发送实现（第5步中断处理时完善） */
+        UART_LOG_WARN("DMA TX not implemented yet, use polling mode");
+
+        /* 临时使用轮询发送 */
+        for (i = 0; i < len; i++)
+        {
+            usart_data_transmit(usart_base, data[i]);
+
+            /* 等待发送完成 */
+            while (usart_flag_get(usart_base, USART_FLAG_TBE) == RESET)
+            {
+                ;
+            }
+        }
+
+        send_len = len;
+    }
+    else
+    {
+        /* 普通轮询发送 */
+        UART_LOG_DEBUG("UART port %d send %d bytes (polling mode)", port, len);
+
+        for (i = 0; i < len; i++)
+        {
+            usart_data_transmit(usart_base, data[i]);
+
+            /* 等待发送完成 */
+            while (usart_flag_get(usart_base, USART_FLAG_TBE) == RESET)
+            {
+                ;
+            }
+        }
+
+        /* 等待最后一帧发送完成 */
+        while (usart_flag_get(usart_base, USART_FLAG_TC) == RESET)
+        {
+            ;
+        }
+
+        send_len = len;
+    }
+
+    /* 如果启用了互斥锁，释放互斥锁 */
+    if (ctrl->tx_mutex != NULL)
+    {
+        xSemaphoreGive(ctrl->tx_mutex);
+    }
+
+    UART_LOG_DEBUG("UART port %d send completed, len=%d", port, send_len);
+
+    return send_len;
 }
 
 /*********************************************************************
@@ -508,16 +633,95 @@ int uart_send(uart_port_e port, const uint8_t *data, uint16_t len)
  *********************************************************************/
 int uart_read(uart_port_e port, uint8_t *data, uint16_t len)
 {
+    uart_ctrl_t *ctrl;
+    int read_len = 0;
+
     /* 断言检查：参数合法性 */
     UART_ASSERT(port < UART_PORT_MAX);
     UART_ASSERT(data != NULL);
     UART_ASSERT(len > 0);
 
-    /* TODO: 第4步实现 */
-    (void)port;
-    (void)data;
-    (void)len;
-    return -1;
+    /* 参数校验 */
+    if (port >= UART_PORT_MAX)
+    {
+        UART_LOG_ERROR("Invalid UART port: %d", port);
+        return -1;
+    }
+
+    if (data == NULL || len == 0)
+    {
+        UART_LOG_ERROR("Invalid read parameter");
+        return -1;
+    }
+
+    ctrl = &s_uart_ctrl[port];
+
+    /* 状态检查 */
+    if (ctrl->state != UART_STATE_ACTIVE)
+    {
+        UART_LOG_WARN("UART port %d not active, state=%d", port, ctrl->state);
+        return -1;
+    }
+
+    /* 判断是否启用RingBuffer */
+    if (ctrl->config.use_ringbuf == true)
+    {
+        /* 从RingBuffer读取数据 */
+        if (ctrl->config.ringbuf == NULL)
+        {
+            UART_LOG_ERROR("RingBuffer pointer is NULL for port %d", port);
+            return -1;
+        }
+
+        read_len = ringbuf_read(ctrl->config.ringbuf, data, len);
+
+        UART_LOG_DEBUG("UART port %d read %d bytes from RingBuffer", port, read_len);
+    }
+    else
+    {
+        /* 从基础接收缓存读取（循环缓冲区） */
+        /* 计算可读取的数据长度 */
+        uint16_t available_len;
+        uint16_t i;
+
+        if (ctrl->rx_write_index >= ctrl->rx_read_index)
+        {
+            /* 写指针在读指针之后或相等 */
+            available_len = ctrl->rx_write_index - ctrl->rx_read_index;
+        }
+        else
+        {
+            /* 写指针在读指针之前（循环） */
+            available_len = ctrl->config.rx_buf_size - ctrl->rx_read_index + ctrl->rx_write_index;
+        }
+
+        /* 取期望长度和可用长度的较小值 */
+        uint16_t copy_len = (len < available_len) ? len : available_len;
+
+        if (copy_len == 0)
+        {
+            UART_LOG_DEBUG("UART port %d no data available", port);
+            return 0;
+        }
+
+        /* 拷贝数据（需要处理循环情况） */
+        for (i = 0; i < copy_len; i++)
+        {
+            data[i] = ctrl->config.rx_buf[ctrl->rx_read_index];
+            ctrl->rx_read_index++;
+
+            if (ctrl->rx_read_index >= ctrl->config.rx_buf_size)
+            {
+                ctrl->rx_read_index = 0;
+            }
+        }
+
+        read_len = copy_len;
+
+        UART_LOG_DEBUG("UART port %d read %d bytes from RX buffer", port, read_len);
+    }
+
+    return read_len;
 }
 
 /*********************************************************************
@@ -582,18 +786,231 @@ int uart_get_state(uart_port_e port)
 }
 
 /*********************************************************************
+ * @brief   查询可读取的接收数据长度
+ * @param   port    UART端口号
+ * @return  可读取的字节数，-1表示失败（端口无效）
+ * @note    应用层可通过此接口查询有多少数据待读取，避免无效调用uart_read
+ *********************************************************************/
+int uart_get_rx_len(uart_port_e port)
+{
+    uart_ctrl_t *ctrl;
+    uint16_t available_len = 0;
+
+    /* 断言检查：端口号必须合法 */
+    UART_ASSERT(port < UART_PORT_MAX);
+
+    if (port >= UART_PORT_MAX)
+    {
+        UART_LOG_ERROR("Invalid UART port: %d", port);
+        return -1;
+    }
+
+    ctrl = &s_uart_ctrl[port];
+
+    /* 状态检查 */
+    if (ctrl->state != UART_STATE_ACTIVE)
+    {
+        UART_LOG_WARN("UART port %d not active, state=%d", port, ctrl->state);
+        return -1;
+    }
+
+    /* 判断是否启用RingBuffer */
+    if (ctrl->config.use_ringbuf == true)
+    {
+        /* 从RingBuffer查询数据长度 */
+        if (ctrl->config.ringbuf == NULL)
+        {
+            UART_LOG_ERROR("RingBuffer pointer is NULL for port %d", port);
+            return -1;
+        }
+
+        available_len = (uint16_t)ringbuf_get_data_size(ctrl->config.ringbuf);
+    }
+    else
+    {
+        /* 从基础接收缓存计算可读取长度 */
+        if (ctrl->rx_write_index >= ctrl->rx_read_index)
+        {
+            available_len = ctrl->rx_write_index - ctrl->rx_read_index;
+        }
+        else
+        {
+            available_len = ctrl->config.rx_buf_size - ctrl->rx_read_index + ctrl->rx_write_index;
+        }
+    }
+
+    UART_LOG_DEBUG("UART port %d rx available: %d bytes", port, available_len);
+
+    return (int)available_len;
+}
+
+/*********************************************************************
  * @brief   UART中断处理函数（统一入口）
  * @param   port    UART端口号
  * @return  无
  * @note    本函数由gd32f50x_it.c中的官方中断服务函数调用，例如：
  *          void USART0_IRQHandler(void) { uart_irq_handler(UART_PORT_USART0); }
  *          应用层不应直接调用此函数
+ *          优化：直接读取寄存器，避免函数调用开销
  *********************************************************************/
 void uart_irq_handler(uart_port_e port)
 {
+    uint32_t usart_base;
+    uart_ctrl_t *ctrl;
+    uint8_t data;
+    uint16_t dma_len = 0;
+    uint32_t stat0;
+    uint32_t int0;
+
     /* 断言检查：端口号必须合法 */
     UART_ASSERT(port < UART_PORT_MAX);
 
-    /* TODO: 第5步实现 */
-    (void)port;
+    if (port >= UART_PORT_MAX)
+    {
+        return;
+    }
+
+    usart_base = s_usart_base[port];
+    ctrl = &s_uart_ctrl[port];
+
+    /* 检查端口状态，非活跃状态不处理中断 */
+    if (ctrl->state != UART_STATE_ACTIVE)
+    {
+        return;
+    }
+
+    /* 一次性读取状态寄存器和中断使能寄存器（优化：避免多次函数调用） */
+    stat0 = USART_STAT0(usart_base);
+    int0 = USART_CTL0(usart_base);
+
+    /* 1. 处理RXNE中断（接收数据非空） */
+    if ((stat0 & USART_STAT0_RBNE) && (int0 & USART_CTL0_RBNEIE))
+    {
+        /* 读DR寄存器清除RBNE标志 */
+        data = (uint8_t)USART_DATA(usart_base);
+
+        /* 根据接收模式分发处理（switch优化） */
+        switch (ctrl->rx_mode)
+        {
+            case UART_RX_MODE_NODMA_RINGBUF:
+                /* 非DMA + RingBuffer模式 */
+                ringbuf_write(ctrl->config.ringbuf, &data, 1);
+                break;
+
+            case UART_RX_MODE_NODMA_RXBUF:
+                /* 非DMA + rx_buf模式（循环缓冲区） */
+                ctrl->config.rx_buf[ctrl->rx_write_index] = data;
+                ctrl->rx_write_index++;
+                if (ctrl->rx_write_index >= ctrl->config.rx_buf_size)
+                {
+                    ctrl->rx_write_index = 0;
+                }
+                break;
+
+            default:
+                /* DMA模式：不处理RXNE，由DMA自动搬运 */
+                break;
+        }
+    }
+
+    /* 2. 处理IDLE中断（空闲帧，一帧数据接收完成） */
+    if ((ctrl->irq_enabled & UART_IRQ_IDLE) && (stat0 & USART_STAT0_IDLEF) && (int0 & USART_CTL0_IDLEIE))
+    {
+        /* 清除IDLE标志：读STAT0后读DATA */
+        (void)USART_DATA(usart_base);
+
+        /* 如果启用DMA接收，计算DMA已接收的数据长度 */
+        if (ctrl->config.use_dma_rx == true)
+        {
+            /* TODO: 获取DMA剩余计数，计算已接收长度 */
+            dma_len = ctrl->dma_rx_len;
+
+            /* 将DMA缓冲区数据写入RingBuffer */
+            if (ctrl->config.use_ringbuf == true && ctrl->config.ringbuf != NULL)
+            {
+                if (dma_len > 0)
+                {
+                    ringbuf_write(ctrl->config.ringbuf, ctrl->config.dma_rx_buf, dma_len);
+                }
+            }
+
+            /* 重启DMA接收 */
+            _uart_enable_dma_rx(port);
+        }
+        else
+        {
+            /* 非DMA模式：计算接收长度（简单估算） */
+            dma_len = 0;  /* 暂无法精确获取，应用层应从RingBuffer查询 */
+        }
+
+        /* 调用接收完成回调 */
+        if (ctrl->config.rx_callback != NULL)
+        {
+            ctrl->config.rx_callback(port, dma_len);
+        }
+    }
+
+    /* 3. 处理错误中断（只检查使能的错误标志） */
+    if (ctrl->irq_enabled & UART_IRQ_ERR)
+    {
+        /* 帧错误 */
+        if (stat0 & USART_STAT0_FERR)
+        {
+            USART_STAT0(usart_base) &= ~USART_STAT0_FERR;  /* 写1清除 */
+
+            if (ctrl->config.error_callback != NULL)
+            {
+                ctrl->config.error_callback(port, UART_ERROR_FRAME);
+            }
+        }
+
+        /* 溢出错误 */
+        if (stat0 & USART_STAT0_ORERR)
+        {
+            USART_STAT0(usart_base) &= ~USART_STAT0_ORERR;
+
+            if (ctrl->config.error_callback != NULL)
+            {
+                ctrl->config.error_callback(port, UART_ERROR_OVERRUN);
+            }
+        }
+
+        /* 噪声错误 */
+        if (stat0 & USART_STAT0_NERR)
+        {
+            USART_STAT0(usart_base) &= ~USART_STAT0_NERR;
+
+            if (ctrl->config.error_callback != NULL)
+            {
+                ctrl->config.error_callback(port, UART_ERROR_NOISE);
+            }
+        }
+
+        /* 奇偶校验错误 */
+        if (stat0 & USART_STAT0_PERR)
+        {
+            USART_STAT0(usart_base) &= ~USART_STAT0_PERR;
+
+            if (ctrl->config.error_callback != NULL)
+            {
+                ctrl->config.error_callback(port, UART_ERROR_PARITY);
+            }
+        }
+    }
+
+    /* 4. 处理TXE中断（发送数据寄存器空） */
+    if ((stat0 & USART_STAT0_TBE) && (int0 & USART_CTL0_TBEIE))
+    {
+        /* TODO: 中断发送实现（需要添加发送缓冲区） */
+        /* 暂时关闭TXE中断，使用轮询发送 */
+        USART_CTL0(usart_base) &= ~USART_CTL0_TBEIE;
+    }
+
+    /* 5. 处理TC中断（发送完成） */
+    if (stat0 & USART_STAT0_TC)
+    {
+        USART_STAT0(usart_base) &= ~USART_STAT0_TC;
+
+        /* TODO: 发送完成回调 */
+    }
 }

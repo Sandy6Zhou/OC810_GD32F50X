@@ -83,6 +83,22 @@ extern "C" {
     #define UART_ASSERT(expr)
 #endif
 
+/* 互斥锁超时时间（毫秒），0表示永久等待 */
+#ifndef UART_TX_MUTEX_TIMEOUT_MS
+#define UART_TX_MUTEX_TIMEOUT_MS      (1000U)  /* 默认1秒超时 */
+#endif
+
+/* 接收模式定义（注册时确定，中断中使用） */
+#define UART_RX_MODE_DMA_RINGBUF      (0x01U)  /**< DMA + RingBuffer */
+#define UART_RX_MODE_DMA_RXBUF        (0x02U)  /**< DMA + rx_buf */
+#define UART_RX_MODE_NODMA_RINGBUF    (0x03U)  /**< 非DMA + RingBuffer */
+#define UART_RX_MODE_NODMA_RXBUF      (0x04U)  /**< 非DMA + rx_buf */
+
+/* 中断使能标志 */
+#define UART_IRQ_RBNE                 (0x01U)  /**< RXNE中断使能 */
+#define UART_IRQ_IDLE                 (0x02U)  /**< IDLE中断使能 */
+#define UART_IRQ_ERR                  (0x04U)  /**< 错误中断使能 */
+
 /*********************************************************************
  * 数据结构定义
  *********************************************************************/
@@ -145,11 +161,14 @@ typedef struct {
     bool          use_idle;                 /**< 是否启用IDLE空闲帧中断（配合DMA接收效果最佳） */
     bool          use_ringbuf;              /**< 是否启用RingBuffer缓冲 */
     bool          use_dma_tx;               /**< 是否启用DMA发送 */
+    bool          use_tx_mutex;             /**< 是否启用发送互斥锁（单任务调用时可禁用，节省RAM） */
     bool          is_wakeup_capable;        /**< 是否为低功耗唤醒串口（true=唤醒串口，false=普通串口） */
 
     /* 回调函数（可选，按需配置，未配置则不触发回调） */
-    void (*rx_callback)(uart_port_e port, uint16_t len);    /**< 接收完成回调（一帧数据到达触发） */
-    void (*error_callback)(uart_port_e port, uart_error_e err);  /**< 错误回调（检测到错误时触发） */
+    void (*rx_callback)(uart_port_e port, uint16_t len);    /**< 接收完成回调（一帧数据到达触发）
+                                                                 @note 在中断上下文中调用，必须快速执行，不能阻塞或调用FreeRTOS API（非FromISR版本） */
+    void (*error_callback)(uart_port_e port, uart_error_e err);  /**< 错误回调（检测到错误时触发）
+                                                                     @note 在中断上下文中调用，必须快速执行，不能阻塞或调用FreeRTOS API（非FromISR版本） */
 } uart_config_t;
 
 /*********************************************************************
@@ -223,6 +242,14 @@ int uart_shutdown(uart_port_e port);
  * @note    用于调试和问题排查
  *********************************************************************/
 int uart_get_state(uart_port_e port);
+
+/*********************************************************************
+ * @brief   查询可读取的接收数据长度
+ * @param   port    UART端口号
+ * @return  可读取的字节数，-1表示失败（端口无效）
+ * @note    应用层可通过此接口查询有多少数据待读取，避免无效调用uart_read
+ *********************************************************************/
+int uart_get_rx_len(uart_port_e port);
 
 /*********************************************************************
  * @brief   UART中断处理函数（统一入口）
