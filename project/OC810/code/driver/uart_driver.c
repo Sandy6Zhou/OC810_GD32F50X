@@ -29,32 +29,32 @@ typedef struct {
     uint32_t ctrl0;             /**< 保存的CTRL0寄存器值 */
     uint32_t ctrl1;             /**< 保存的CTRL1寄存器值 */
     uint32_t ctrl2;             /**< 保存的CTRL2寄存器值 */
-} uart_context_t;
+} drv_uart_context_t;
 
 /**
  * @brief UART控制结构体（驱动内部维护）
  */
 typedef struct {
-    uart_config_t   config;             /**< 应用层配置参数（只读） */
-    uart_state_e    state;              /**< 当前状态 */
+    drv_uart_config_t   config;             /**< 应用层配置参数（只读） */
+    drv_uart_state_e    state;              /**< 当前状态 */
     SemaphoreHandle_t tx_mutex;         /**< 发送互斥锁 */
-    uart_context_t  context;            /**< 挂起时的现场保存 */
+    drv_uart_context_t  context;            /**< 挂起时的现场保存 */
     uint16_t        dma_rx_len;         /**< DMA接收数据长度 */
     uint16_t        rx_write_index;     /**< rx_buf写指针（中断中使用） */
     uint16_t        rx_read_index;      /**< rx_buf读指针（应用层使用） */
     uint8_t         rx_mode;            /**< 接收模式标识（注册时确定） */
     uint8_t         irq_enabled;        /**< 中断使能标志（注册时确定） */
-} uart_ctrl_t;
+} drv_uart_ctrl_t;
 
 /*********************************************************************
  * 内部全局变量
  *********************************************************************/
 
 /** UART控制实例数组 */
-static uart_ctrl_t s_uart_ctrl[UART_PORT_MAX] = {0};
+static drv_uart_ctrl_t s_uart_ctrl[DRV_UART_PORT_MAX] = {0};
 
 /** USART基地址映射表 */
-static uint32_t const s_usart_base[UART_PORT_MAX] = {
+static uint32_t const s_usart_base[DRV_UART_PORT_MAX] = {
     USART0,
     USART1,
     USART2,
@@ -66,13 +66,13 @@ static uint32_t const s_usart_base[UART_PORT_MAX] = {
  * 内部辅助函数声明
  *********************************************************************/
 
-static int _uart_check_param(const uart_config_t *config);
-static int _uart_hw_init(uart_port_e port);
-static int _uart_hw_deinit(uart_port_e port);
-static int _uart_enable_interrupt(uart_port_e port);
-static int _uart_disable_interrupt(uart_port_e port);
-static int _uart_enable_dma_rx(uart_port_e port);
-static int _uart_disable_dma_rx(uart_port_e port);
+static int _drv_uart_check_param(const drv_uart_config_t *config);
+static int _drv_uart_hw_init(drv_uart_port_e port);
+static int _drv_uart_hw_deinit(drv_uart_port_e port);
+static int _drv_uart_enable_interrupt(drv_uart_port_e port);
+static int _drv_uart_disable_interrupt(drv_uart_port_e port);
+static int _drv_uart_enable_dma_rx(drv_uart_port_e port);
+static int _drv_uart_disable_dma_rx(drv_uart_port_e port);
 
 /*********************************************************************
  * 内部辅助函数实现
@@ -84,23 +84,23 @@ static int _uart_disable_dma_rx(uart_port_e port);
  * @return  0表示合法，-1表示非法
  * @note    无
  *********************************************************************/
-static int _uart_check_param(const uart_config_t *config)
+static int _drv_uart_check_param(const drv_uart_config_t *config)
 {
     if (config == NULL)
     {
-        UART_LOG_ERROR("Invalid UART config parameter");
+        DRV_UART_LOGE("Invalid UART config parameter");
         return -1;
     }
 
-    if (config->port >= UART_PORT_MAX)
+    if (config->port >= DRV_UART_PORT_MAX)
     {
-        UART_LOG_ERROR("Invalid UART port: %d", config->port);
+        DRV_UART_LOGE("Invalid UART port: %d", config->port);
         return -1;
     }
 
     if (config->rx_buf == NULL || config->rx_buf_size == 0)
     {
-        UART_LOG_ERROR("Invalid UART RX buffer");
+        DRV_UART_LOGE("Invalid UART RX buffer");
         return -1;
     }
 
@@ -108,7 +108,7 @@ static int _uart_check_param(const uart_config_t *config)
     {
         if (config->dma_rx_buf == NULL || config->dma_rx_buf_size == 0)
         {
-            UART_LOG_ERROR("Invalid DMA RX buffer");
+            DRV_UART_LOGE("Invalid DMA RX buffer");
             return -1;
         }
     }
@@ -117,7 +117,7 @@ static int _uart_check_param(const uart_config_t *config)
     {
         if (config->ringbuf == NULL)
         {
-            UART_LOG_ERROR("Invalid RingBuffer pointer");
+            DRV_UART_LOGE("Invalid RingBuffer pointer");
             return -1;
         }
     }
@@ -131,40 +131,40 @@ static int _uart_check_param(const uart_config_t *config)
  * @return  0表示成功，-1表示失败
  * @note    配置波特率、数据位、停止位、校验位等
  *********************************************************************/
-static int _uart_hw_init(uart_port_e port)
+static int _drv_uart_hw_init(drv_uart_port_e port)
 {
     uint32_t usart_base;
-    uart_ctrl_t *ctrl;
+    drv_uart_ctrl_t *ctrl;
 
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
-        UART_LOG_ERROR("Invalid port: %d", port);
+        DRV_UART_LOGE("Invalid port: %d", port);
         return -1;
     }
 
     usart_base = s_usart_base[port];
     ctrl = &s_uart_ctrl[port];
 
-    UART_LOG_DEBUG("Hardware init UART port %d, baudrate=%d", port, ctrl->config.baudrate);
+    DRV_UART_LOGD("Hardware init UART port %d, baudrate=%d", port, ctrl->config.baudrate);
 
     /* 使能UART时钟和GPIO时钟（根据端口配置） */
-    if (port == UART_PORT_USART0)
+    if (port == DRV_UART_PORT_USART0)
     {
         rcu_periph_clock_enable(RCU_USART0);
     }
-    else if (port == UART_PORT_USART1)
+    else if (port == DRV_UART_PORT_USART1)
     {
         rcu_periph_clock_enable(RCU_USART1);
     }
-    else if (port == UART_PORT_USART2)
+    else if (port == DRV_UART_PORT_USART2)
     {
         rcu_periph_clock_enable(RCU_USART2);
     }
-    else if (port == UART_PORT_UART3)
+    else if (port == DRV_UART_PORT_UART3)
     {
         rcu_periph_clock_enable(RCU_UART3);
     }
-    else if (port == UART_PORT_UART4)
+    else if (port == DRV_UART_PORT_UART4)
     {
         rcu_periph_clock_enable(RCU_UART4);
     }
@@ -181,7 +181,7 @@ static int _uart_hw_init(uart_port_e port)
     usart_transmit_config(usart_base, USART_TRANSMIT_ENABLE);
     usart_enable(usart_base);
 
-    UART_LOG_DEBUG("UART port %d hardware initialized", port);
+    DRV_UART_LOGD("UART port %d hardware initialized", port);
 
     return 0;
 }
@@ -192,11 +192,11 @@ static int _uart_hw_init(uart_port_e port)
  * @return  0表示成功，-1表示失败
  * @note    关闭UART外设和时钟
  *********************************************************************/
-static int _uart_hw_deinit(uart_port_e port)
+static int _drv_uart_hw_deinit(drv_uart_port_e port)
 {
     uint32_t usart_base;
 
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
         return -1;
     }
@@ -206,23 +206,23 @@ static int _uart_hw_deinit(uart_port_e port)
     usart_disable(usart_base);
 
     /* 关闭UART时钟 */
-    if (port == UART_PORT_USART0)
+    if (port == DRV_UART_PORT_USART0)
     {
         rcu_periph_clock_disable(RCU_USART0);
     }
-    else if (port == UART_PORT_USART1)
+    else if (port == DRV_UART_PORT_USART1)
     {
         rcu_periph_clock_disable(RCU_USART1);
     }
-    else if (port == UART_PORT_USART2)
+    else if (port == DRV_UART_PORT_USART2)
     {
         rcu_periph_clock_disable(RCU_USART2);
     }
-    else if (port == UART_PORT_UART3)
+    else if (port == DRV_UART_PORT_UART3)
     {
         rcu_periph_clock_disable(RCU_UART3);
     }
-    else if (port == UART_PORT_UART4)
+    else if (port == DRV_UART_PORT_UART4)
     {
         rcu_periph_clock_disable(RCU_UART4);
     }
@@ -236,12 +236,12 @@ static int _uart_hw_deinit(uart_port_e port)
  * @return  0表示成功，-1表示失败
  * @note    使能RXNE中断，如果配置了IDLE则使能IDLE中断
  *********************************************************************/
-static int _uart_enable_interrupt(uart_port_e port)
+static int _drv_uart_enable_interrupt(drv_uart_port_e port)
 {
     uint32_t usart_base;
-    uart_ctrl_t *ctrl;
+    drv_uart_ctrl_t *ctrl;
 
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
         return -1;
     }
@@ -261,7 +261,7 @@ static int _uart_enable_interrupt(uart_port_e port)
     /* 使能错误中断 */
     usart_interrupt_enable(usart_base, USART_INT_ERR);
 
-    UART_LOG_DEBUG("UART port %d interrupts enabled, IDLE=%d", port, ctrl->config.use_idle);
+    DRV_UART_LOGD("UART port %d interrupts enabled, IDLE=%d", port, ctrl->config.use_idle);
 
     return 0;
 }
@@ -272,11 +272,11 @@ static int _uart_enable_interrupt(uart_port_e port)
  * @return  0表示成功，-1表示失败
  * @note    无
  *********************************************************************/
-static int _uart_disable_interrupt(uart_port_e port)
+static int _drv_uart_disable_interrupt(drv_uart_port_e port)
 {
     uint32_t usart_base;
 
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
         return -1;
     }
@@ -287,7 +287,7 @@ static int _uart_disable_interrupt(uart_port_e port)
     usart_interrupt_disable(usart_base, USART_INT_IDLE);
     usart_interrupt_disable(usart_base, USART_INT_ERR);
 
-    UART_LOG_DEBUG("UART port %d interrupts disabled", port);
+    DRV_UART_LOGD("UART port %d interrupts disabled", port);
 
     return 0;
 }
@@ -298,7 +298,7 @@ static int _uart_disable_interrupt(uart_port_e port)
  * @return  0表示成功，-1表示失败
  * @note    配置DMA通道并启动DMA接收
  *********************************************************************/
-static int _uart_enable_dma_rx(uart_port_e port)
+static int _drv_uart_enable_dma_rx(drv_uart_port_e port)
 {
     /* TODO: 根据具体端口配置DMA通道 */
     /* 这里需要根据GD32F505的DMA通道映射来配置 */
@@ -312,7 +312,7 @@ static int _uart_enable_dma_rx(uart_port_e port)
  * @return  0表示成功，-1表示失败
  * @note    无
  *********************************************************************/
-static int _uart_disable_dma_rx(uart_port_e port)
+static int _drv_uart_disable_dma_rx(drv_uart_port_e port)
 {
     /* TODO: 关闭DMA通道 */
 
@@ -329,18 +329,18 @@ static int _uart_disable_dma_rx(uart_port_e port)
  * @return  0表示成功，-1表示失败（参数错误或端口已注册）
  * @note    应用层需确保配置参数合法，所有内存资源由应用层分配管理
  *********************************************************************/
-int uart_register(const uart_config_t *config)
+int drv_uart_register(const drv_uart_config_t *config)
 {
-    uart_ctrl_t *ctrl;
-    uart_port_e port;
+    drv_uart_ctrl_t *ctrl;
+    drv_uart_port_e port;
 
     /* 断言检查：配置指针不能为空 */
-    UART_ASSERT(config != NULL);
+    DRV_UART_ASSERT(config != NULL);
 
     /* 参数检查 */
-    if (_uart_check_param(config) != 0)
+    if (_drv_uart_check_param(config) != 0)
     {
-        UART_LOG_ERROR("Invalid config parameter for port");
+        DRV_UART_LOGE("Invalid config parameter for port");
         return -1;
     }
 
@@ -348,33 +348,33 @@ int uart_register(const uart_config_t *config)
     ctrl = &s_uart_ctrl[port];
 
     /* 断言检查：端口号必须合法 */
-    UART_ASSERT(port < UART_PORT_MAX);
+    DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
 
     /* 检查端口是否已注册 */
-    if (ctrl->state != UART_STATE_UNINIT)
+    if (ctrl->state != DRV_UART_STATE_UNINIT)
     {
-        UART_LOG_WARN("UART port %d already registered, state=%d", port, ctrl->state);
+        DRV_UART_LOGW("UART port %d already registered, state=%d", port, ctrl->state);
         return -1;
     }
 
     /* 保存配置参数 */
-    memcpy(&ctrl->config, config, sizeof(uart_config_t));
+    memcpy(&ctrl->config, config, sizeof(drv_uart_config_t));
 
     /* 初始化接收模式标识 */
     if (config->use_dma_rx == true)
     {
-        ctrl->rx_mode = (config->use_ringbuf == true) ? UART_RX_MODE_DMA_RINGBUF : UART_RX_MODE_DMA_RXBUF;
+        ctrl->rx_mode = (config->use_ringbuf == true) ? DRV_UART_RX_MODE_DMA_RINGBUF : DRV_UART_RX_MODE_DMA_RXBUF;
     }
     else
     {
-        ctrl->rx_mode = (config->use_ringbuf == true) ? UART_RX_MODE_NODMA_RINGBUF : UART_RX_MODE_NODMA_RXBUF;
+        ctrl->rx_mode = (config->use_ringbuf == true) ? DRV_UART_RX_MODE_NODMA_RINGBUF : DRV_UART_RX_MODE_NODMA_RXBUF;
     }
 
     /* 初始化中断使能标志 */
-    ctrl->irq_enabled = UART_IRQ_RBNE | UART_IRQ_ERR;  /* RXNE和ERR总是使能 */
+    ctrl->irq_enabled = DRV_UART_IRQ_RBNE | DRV_UART_IRQ_ERR;  /* RXNE和ERR总是使能 */
     if (config->use_idle == true)
     {
-        ctrl->irq_enabled |= UART_IRQ_IDLE;
+        ctrl->irq_enabled |= DRV_UART_IRQ_IDLE;
     }
 
     /* 根据配置创建发送互斥锁 */
@@ -383,61 +383,61 @@ int uart_register(const uart_config_t *config)
         ctrl->tx_mutex = xSemaphoreCreateMutex();
         if (ctrl->tx_mutex == NULL)
         {
-            UART_LOG_ERROR("Failed to create TX mutex for port %d", port);
+            DRV_UART_LOGE("Failed to create TX mutex for port %d", port);
             return -1;
         }
 
-        UART_LOG_DEBUG("TX mutex created for port %d", port);
+        DRV_UART_LOGD("TX mutex created for port %d", port);
     }
     else
     {
         ctrl->tx_mutex = NULL;
-        UART_LOG_DEBUG("TX mutex disabled for port %d", port);
+        DRV_UART_LOGD("TX mutex disabled for port %d", port);
     }
 
     /* 初始化状态 */
-    ctrl->state = UART_STATE_INIT;
+    ctrl->state = DRV_UART_STATE_INIT;
 
     /* 硬件初始化 */
-    if (_uart_hw_init(port) != 0)
+    if (_drv_uart_hw_init(port) != 0)
     {
-        UART_LOG_ERROR("Hardware init failed for port %d", port);
+        DRV_UART_LOGE("Hardware init failed for port %d", port);
         vSemaphoreDelete(ctrl->tx_mutex);
-        ctrl->state = UART_STATE_UNINIT;
+        ctrl->state = DRV_UART_STATE_UNINIT;
         return -1;
     }
 
     /* 如果启用DMA接收 */
     if (config->use_dma_rx == true)
     {
-        if (_uart_enable_dma_rx(port) != 0)
+        if (_drv_uart_enable_dma_rx(port) != 0)
         {
-            UART_LOG_ERROR("DMA RX enable failed for port %d", port);
-            _uart_hw_deinit(port);
+            DRV_UART_LOGE("DMA RX enable failed for port %d", port);
+            _drv_uart_hw_deinit(port);
             vSemaphoreDelete(ctrl->tx_mutex);
-            ctrl->state = UART_STATE_UNINIT;
+            ctrl->state = DRV_UART_STATE_UNINIT;
             return -1;
         }
     }
 
     /* 使能中断 */
-    if (_uart_enable_interrupt(port) != 0)
+    if (_drv_uart_enable_interrupt(port) != 0)
     {
-        UART_LOG_ERROR("Interrupt enable failed for port %d", port);
+        DRV_UART_LOGE("Interrupt enable failed for port %d", port);
         if (config->use_dma_rx == true)
         {
-            _uart_disable_dma_rx(port);
+            _drv_uart_disable_dma_rx(port);
         }
-        _uart_hw_deinit(port);
+        _drv_uart_hw_deinit(port);
         vSemaphoreDelete(ctrl->tx_mutex);
-        ctrl->state = UART_STATE_UNINIT;
+        ctrl->state = DRV_UART_STATE_UNINIT;
         return -1;
     }
 
     /* 切换到活跃状态 */
-    ctrl->state = UART_STATE_ACTIVE;
+    ctrl->state = DRV_UART_STATE_ACTIVE;
 
-    UART_LOG_INFO("UART port %d registered successfully, baudrate=%d, DMA_RX=%d, IDLE=%d, RingBuf=%d",
+    DRV_UART_LOGI("UART port %d registered successfully, baudrate=%d, DMA_RX=%d, IDLE=%d, RingBuf=%d",
                   port, config->baudrate, config->use_dma_rx, config->use_idle, config->use_ringbuf);
 
     return 0;
@@ -449,39 +449,39 @@ int uart_register(const uart_config_t *config)
  * @return  0表示成功，-1表示失败（端口未初始化）
  * @note    释放驱动内部资源，应用层传入的内存由应用层自行管理
  *********************************************************************/
-int uart_deinit(uart_port_e port)
+int drv_uart_deinit(drv_uart_port_e port)
 {
-    uart_ctrl_t *ctrl;
+    drv_uart_ctrl_t *ctrl;
 
     /* 断言检查：端口号必须合法 */
-    UART_ASSERT(port < UART_PORT_MAX);
+    DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
 
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
-        UART_LOG_ERROR("Invalid UART port: %d", port);
+        DRV_UART_LOGE("Invalid UART port: %d", port);
         return -1;
     }
 
     ctrl = &s_uart_ctrl[port];
 
     /* 检查端口状态 */
-    if (ctrl->state == UART_STATE_UNINIT)
+    if (ctrl->state == DRV_UART_STATE_UNINIT)
     {
-        UART_LOG_WARN("UART port %d not initialized", port);
+        DRV_UART_LOGW("UART port %d not initialized", port);
         return -1;
     }
 
     /* 关闭中断 */
-    _uart_disable_interrupt(port);
+    _drv_uart_disable_interrupt(port);
 
     /* 关闭DMA */
     if (ctrl->config.use_dma_rx == true)
     {
-        _uart_disable_dma_rx(port);
+        _drv_uart_disable_dma_rx(port);
     }
 
     /* 硬件去初始化 */
-    _uart_hw_deinit(port);
+    _drv_uart_hw_deinit(port);
 
     /* 释放互斥锁 */
     if (ctrl->tx_mutex != NULL)
@@ -491,13 +491,13 @@ int uart_deinit(uart_port_e port)
     }
 
     /* 清空配置 */
-    memset(&ctrl->config, 0, sizeof(uart_config_t));
-    memset(&ctrl->context, 0, sizeof(uart_context_t));
+    memset(&ctrl->config, 0, sizeof(drv_uart_config_t));
+    memset(&ctrl->context, 0, sizeof(drv_uart_context_t));
 
     /* 状态重置 */
-    ctrl->state = UART_STATE_UNINIT;
+    ctrl->state = DRV_UART_STATE_UNINIT;
 
-    UART_LOG_INFO("UART port %d deinitialized successfully", port);
+    DRV_UART_LOGI("UART port %d deinitialized successfully", port);
 
     return 0;
 }
@@ -512,37 +512,37 @@ int uart_deinit(uart_port_e port)
  * @return  实际发送的字节数，-1表示失败
  * @note    线程安全，支持普通发送和DMA发送（根据配置自动选择）
  *********************************************************************/
-int uart_send(uart_port_e port, const uint8_t *data, uint16_t len)
+int drv_uart_send(drv_uart_port_e port, const uint8_t *data, uint16_t len)
 {
     uint32_t usart_base;
-    uart_ctrl_t *ctrl;
+    drv_uart_ctrl_t *ctrl;
     int send_len = 0;
     uint16_t i;
 
     /* 断言检查：参数合法性 */
-    UART_ASSERT(port < UART_PORT_MAX);
-    UART_ASSERT(data != NULL);
-    UART_ASSERT(len > 0);
+    DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
+    DRV_UART_ASSERT(data != NULL);
+    DRV_UART_ASSERT(len > 0);
 
     /* 参数校验 */
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
-        UART_LOG_ERROR("Invalid UART port: %d", port);
+        DRV_UART_LOGE("Invalid UART port: %d", port);
         return -1;
     }
 
     if (data == NULL || len == 0)
     {
-        UART_LOG_ERROR("Invalid send parameter");
+        DRV_UART_LOGE("Invalid send parameter");
         return -1;
     }
 
     ctrl = &s_uart_ctrl[port];
 
     /* 状态检查：只有活跃状态才能发送 */
-    if (ctrl->state != UART_STATE_ACTIVE)
+    if (ctrl->state != DRV_UART_STATE_ACTIVE)
     {
-        UART_LOG_WARN("UART port %d not active, state=%d", port, ctrl->state);
+        DRV_UART_LOGW("UART port %d not active, state=%d", port, ctrl->state);
         return -1;
     }
 
@@ -552,16 +552,16 @@ int uart_send(uart_port_e port, const uint8_t *data, uint16_t len)
     if (ctrl->tx_mutex != NULL)
     {
         /* 使用超时机制，避免永久阻塞 */
-#if UART_TX_MUTEX_TIMEOUT_MS > 0
-        if (xSemaphoreTake(ctrl->tx_mutex, pdMS_TO_TICKS(UART_TX_MUTEX_TIMEOUT_MS)) != pdTRUE)
+#if DRV_UART_TX_MUTEX_TIMEOUT_MS > 0
+        if (xSemaphoreTake(ctrl->tx_mutex, pdMS_TO_TICKS(DRV_UART_TX_MUTEX_TIMEOUT_MS)) != pdTRUE)
         {
-            UART_LOG_ERROR("TX mutex timeout for port %d", port);
+            DRV_UART_LOGE("TX mutex timeout for port %d", port);
             return -1;
         }
 #else
         if (xSemaphoreTake(ctrl->tx_mutex, portMAX_DELAY) != pdTRUE)
         {
-            UART_LOG_ERROR("Failed to take TX mutex for port %d", port);
+            DRV_UART_LOGE("Failed to take TX mutex for port %d", port);
             return -1;
         }
 #endif
@@ -571,7 +571,7 @@ int uart_send(uart_port_e port, const uint8_t *data, uint16_t len)
     if (ctrl->config.use_dma_tx == true)
     {
         /* TODO: DMA发送实现（第5步中断处理时完善） */
-        UART_LOG_WARN("DMA TX not implemented yet, use polling mode");
+        DRV_UART_LOGW("DMA TX not implemented yet, use polling mode");
 
         /* 临时使用轮询发送 */
         for (i = 0; i < len; i++)
@@ -590,7 +590,7 @@ int uart_send(uart_port_e port, const uint8_t *data, uint16_t len)
     else
     {
         /* 普通轮询发送 */
-        UART_LOG_DEBUG("UART port %d send %d bytes (polling mode)", port, len);
+        DRV_UART_LOGD("UART port %d send %d bytes (polling mode)", port, len);
 
         for (i = 0; i < len; i++)
         {
@@ -618,7 +618,7 @@ int uart_send(uart_port_e port, const uint8_t *data, uint16_t len)
         xSemaphoreGive(ctrl->tx_mutex);
     }
 
-    UART_LOG_DEBUG("UART port %d send completed, len=%d", port, send_len);
+    DRV_UART_LOGD("UART port %d send completed, len=%d", port, send_len);
 
     return send_len;
 }
@@ -631,35 +631,35 @@ int uart_send(uart_port_e port, const uint8_t *data, uint16_t len)
  * @return  实际读取的字节数，-1表示失败
  * @note    从RingBuffer或接收缓存中读取数据
  *********************************************************************/
-int uart_read(uart_port_e port, uint8_t *data, uint16_t len)
+int drv_uart_read(drv_uart_port_e port, uint8_t *data, uint16_t len)
 {
-    uart_ctrl_t *ctrl;
+    drv_uart_ctrl_t *ctrl;
     int read_len = 0;
 
     /* 断言检查：参数合法性 */
-    UART_ASSERT(port < UART_PORT_MAX);
-    UART_ASSERT(data != NULL);
-    UART_ASSERT(len > 0);
+    DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
+    DRV_UART_ASSERT(data != NULL);
+    DRV_UART_ASSERT(len > 0);
 
     /* 参数校验 */
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
-        UART_LOG_ERROR("Invalid UART port: %d", port);
+        DRV_UART_LOGE("Invalid UART port: %d", port);
         return -1;
     }
 
     if (data == NULL || len == 0)
     {
-        UART_LOG_ERROR("Invalid read parameter");
+        DRV_UART_LOGE("Invalid read parameter");
         return -1;
     }
 
     ctrl = &s_uart_ctrl[port];
 
     /* 状态检查 */
-    if (ctrl->state != UART_STATE_ACTIVE)
+    if (ctrl->state != DRV_UART_STATE_ACTIVE)
     {
-        UART_LOG_WARN("UART port %d not active, state=%d", port, ctrl->state);
+        DRV_UART_LOGW("UART port %d not active, state=%d", port, ctrl->state);
         return -1;
     }
 
@@ -669,13 +669,13 @@ int uart_read(uart_port_e port, uint8_t *data, uint16_t len)
         /* 从RingBuffer读取数据 */
         if (ctrl->config.ringbuf == NULL)
         {
-            UART_LOG_ERROR("RingBuffer pointer is NULL for port %d", port);
+            DRV_UART_LOGE("RingBuffer pointer is NULL for port %d", port);
             return -1;
         }
 
         read_len = ringbuf_read(ctrl->config.ringbuf, data, len);
 
-        UART_LOG_DEBUG("UART port %d read %d bytes from RingBuffer", port, read_len);
+        DRV_UART_LOGD("UART port %d read %d bytes from RingBuffer", port, read_len);
     }
     else
     {
@@ -700,7 +700,7 @@ int uart_read(uart_port_e port, uint8_t *data, uint16_t len)
 
         if (copy_len == 0)
         {
-            UART_LOG_DEBUG("UART port %d no data available", port);
+            DRV_UART_LOGD("UART port %d no data available", port);
             return 0;
         }
 
@@ -718,7 +718,7 @@ int uart_read(uart_port_e port, uint8_t *data, uint16_t len)
 
         read_len = copy_len;
 
-        UART_LOG_DEBUG("UART port %d read %d bytes from RX buffer", port, read_len);
+        DRV_UART_LOGD("UART port %d read %d bytes from RX buffer", port, read_len);
     }
 
     return read_len;
@@ -730,7 +730,7 @@ int uart_read(uart_port_e port, uint8_t *data, uint16_t len)
  * @return  0表示成功，-1表示失败（端口状态不允许挂起）
  * @note    唤醒串口仅关闭TX，普通串口彻底关闭硬件
  *********************************************************************/
-int uart_suspend(uart_port_e port)
+int drv_uart_suspend(drv_uart_port_e port)
 {
     /* TODO: 第6步实现 */
     (void)port;
@@ -743,7 +743,7 @@ int uart_suspend(uart_port_e port)
  * @return  0表示成功，-1表示失败（端口状态不允许恢复）
  * @note    恢复挂起的UART端口到活跃状态
  *********************************************************************/
-int uart_resume(uart_port_e port)
+int drv_uart_resume(drv_uart_port_e port)
 {
     /* TODO: 第6步实现 */
     (void)port;
@@ -756,7 +756,7 @@ int uart_resume(uart_port_e port)
  * @return  0表示成功，-1表示失败（端口未初始化）
  * @note    彻底关闭硬件，可通过resume恢复，不释放控制实例
  *********************************************************************/
-int uart_shutdown(uart_port_e port)
+int drv_uart_shutdown(drv_uart_port_e port)
 {
     /* TODO: 第6步实现 */
     (void)port;
@@ -769,18 +769,18 @@ int uart_shutdown(uart_port_e port)
  * @return  UART状态枚举值，-1表示失败（端口无效）
  * @note    用于调试和问题排查
  *********************************************************************/
-int uart_get_state(uart_port_e port)
+int drv_uart_get_state(drv_uart_port_e port)
 {
     /* 断言检查：端口号必须合法 */
-    UART_ASSERT(port < UART_PORT_MAX);
+    DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
 
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
-        UART_LOG_ERROR("Invalid UART port: %d", port);
+        DRV_UART_LOGE("Invalid UART port: %d", port);
         return -1;
     }
 
-    UART_LOG_DEBUG("UART port %d state: %d", port, s_uart_ctrl[port].state);
+    DRV_UART_LOGD("UART port %d state: %d", port, s_uart_ctrl[port].state);
 
     return (int)s_uart_ctrl[port].state;
 }
@@ -791,26 +791,26 @@ int uart_get_state(uart_port_e port)
  * @return  可读取的字节数，-1表示失败（端口无效）
  * @note    应用层可通过此接口查询有多少数据待读取，避免无效调用uart_read
  *********************************************************************/
-int uart_get_rx_len(uart_port_e port)
+int drv_uart_get_rx_len(drv_uart_port_e port)
 {
-    uart_ctrl_t *ctrl;
+    drv_uart_ctrl_t *ctrl;
     uint16_t available_len = 0;
 
     /* 断言检查：端口号必须合法 */
-    UART_ASSERT(port < UART_PORT_MAX);
+    DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
 
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
-        UART_LOG_ERROR("Invalid UART port: %d", port);
+        DRV_UART_LOGE("Invalid UART port: %d", port);
         return -1;
     }
 
     ctrl = &s_uart_ctrl[port];
 
     /* 状态检查 */
-    if (ctrl->state != UART_STATE_ACTIVE)
+    if (ctrl->state != DRV_UART_STATE_ACTIVE)
     {
-        UART_LOG_WARN("UART port %d not active, state=%d", port, ctrl->state);
+        DRV_UART_LOGW("UART port %d not active, state=%d", port, ctrl->state);
         return -1;
     }
 
@@ -820,7 +820,7 @@ int uart_get_rx_len(uart_port_e port)
         /* 从RingBuffer查询数据长度 */
         if (ctrl->config.ringbuf == NULL)
         {
-            UART_LOG_ERROR("RingBuffer pointer is NULL for port %d", port);
+            DRV_UART_LOGE("RingBuffer pointer is NULL for port %d", port);
             return -1;
         }
 
@@ -839,7 +839,7 @@ int uart_get_rx_len(uart_port_e port)
         }
     }
 
-    UART_LOG_DEBUG("UART port %d rx available: %d bytes", port, available_len);
+    DRV_UART_LOGD("UART port %d rx available: %d bytes", port, available_len);
 
     return (int)available_len;
 }
@@ -853,19 +853,19 @@ int uart_get_rx_len(uart_port_e port)
  *          应用层不应直接调用此函数
  *          优化：直接读取寄存器，避免函数调用开销
  *********************************************************************/
-void uart_irq_handler(uart_port_e port)
+void drv_uart_irq_handler(drv_uart_port_e port)
 {
     uint32_t usart_base;
-    uart_ctrl_t *ctrl;
+    drv_uart_ctrl_t *ctrl;
     uint8_t data;
     uint16_t dma_len = 0;
     uint32_t stat0;
     uint32_t int0;
 
     /* 断言检查：端口号必须合法 */
-    UART_ASSERT(port < UART_PORT_MAX);
+    DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
 
-    if (port >= UART_PORT_MAX)
+    if (port >= DRV_UART_PORT_MAX)
     {
         return;
     }
@@ -874,7 +874,7 @@ void uart_irq_handler(uart_port_e port)
     ctrl = &s_uart_ctrl[port];
 
     /* 检查端口状态，非活跃状态不处理中断 */
-    if (ctrl->state != UART_STATE_ACTIVE)
+    if (ctrl->state != DRV_UART_STATE_ACTIVE)
     {
         return;
     }
@@ -892,12 +892,12 @@ void uart_irq_handler(uart_port_e port)
         /* 根据接收模式分发处理（switch优化） */
         switch (ctrl->rx_mode)
         {
-            case UART_RX_MODE_NODMA_RINGBUF:
+            case DRV_UART_RX_MODE_NODMA_RINGBUF:
                 /* 非DMA + RingBuffer模式 */
                 ringbuf_write(ctrl->config.ringbuf, &data, 1);
                 break;
 
-            case UART_RX_MODE_NODMA_RXBUF:
+            case DRV_UART_RX_MODE_NODMA_RXBUF:
                 /* 非DMA + rx_buf模式（循环缓冲区） */
                 ctrl->config.rx_buf[ctrl->rx_write_index] = data;
                 ctrl->rx_write_index++;
@@ -914,7 +914,7 @@ void uart_irq_handler(uart_port_e port)
     }
 
     /* 2. 处理IDLE中断（空闲帧，一帧数据接收完成） */
-    if ((ctrl->irq_enabled & UART_IRQ_IDLE) && (stat0 & USART_STAT0_IDLEF) && (int0 & USART_CTL0_IDLEIE))
+    if ((ctrl->irq_enabled & DRV_UART_IRQ_IDLE) && (stat0 & USART_STAT0_IDLEF) && (int0 & USART_CTL0_IDLEIE))
     {
         /* 清除IDLE标志：读STAT0后读DATA */
         (void)USART_DATA(usart_base);
@@ -935,7 +935,7 @@ void uart_irq_handler(uart_port_e port)
             }
 
             /* 重启DMA接收 */
-            _uart_enable_dma_rx(port);
+            _drv_uart_enable_dma_rx(port);
         }
         else
         {
@@ -951,7 +951,7 @@ void uart_irq_handler(uart_port_e port)
     }
 
     /* 3. 处理错误中断（只检查使能的错误标志） */
-    if (ctrl->irq_enabled & UART_IRQ_ERR)
+    if (ctrl->irq_enabled & DRV_UART_IRQ_ERR)
     {
         /* 帧错误 */
         if (stat0 & USART_STAT0_FERR)
@@ -960,7 +960,7 @@ void uart_irq_handler(uart_port_e port)
 
             if (ctrl->config.error_callback != NULL)
             {
-                ctrl->config.error_callback(port, UART_ERROR_FRAME);
+                ctrl->config.error_callback(port, DRV_UART_ERROR_FRAME);
             }
         }
 
@@ -971,7 +971,7 @@ void uart_irq_handler(uart_port_e port)
 
             if (ctrl->config.error_callback != NULL)
             {
-                ctrl->config.error_callback(port, UART_ERROR_OVERRUN);
+                ctrl->config.error_callback(port, DRV_UART_ERROR_OVERRUN);
             }
         }
 
@@ -982,7 +982,7 @@ void uart_irq_handler(uart_port_e port)
 
             if (ctrl->config.error_callback != NULL)
             {
-                ctrl->config.error_callback(port, UART_ERROR_NOISE);
+                ctrl->config.error_callback(port, DRV_UART_ERROR_NOISE);
             }
         }
 
@@ -993,7 +993,7 @@ void uart_irq_handler(uart_port_e port)
 
             if (ctrl->config.error_callback != NULL)
             {
-                ctrl->config.error_callback(port, UART_ERROR_PARITY);
+                ctrl->config.error_callback(port, DRV_UART_ERROR_PARITY);
             }
         }
     }

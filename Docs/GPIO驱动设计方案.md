@@ -82,12 +82,12 @@
  */
 typedef enum
 {
-    MY_GPIO_PORT_A = GPIOA,       /**< GPIOA端口 */
-    MY_GPIO_PORT_B = GPIOB,       /**< GPIOB端口 */
-    MY_GPIO_PORT_C = GPIOC,       /**< GPIOC端口 */
-    MY_GPIO_PORT_D = GPIOD,       /**< GPIOD端口 */
-    MY_GPIO_PORT_E = GPIOE        /**< GPIOE端口 */
-} my_gpio_port_e;
+    DRV_GPIOA = GPIOA,       /**< GPIOA端口 */
+    DRV_GPIOB = GPIOB,       /**< GPIOB端口 */
+    DRV_GPIOC = GPIOC,       /**< GPIOC端口 */
+    DRV_GPIOD = GPIOD,       /**< GPIOD端口 */
+    DRV_GPIOE = GPIOE        /**< GPIOE端口 */
+} drv_gpio_port_e;
 
 /**
  * @brief  驱动层引脚枚举
@@ -95,65 +95,65 @@ typedef enum
  */
 typedef enum
 {
-    MY_GPIO_PIN_0 = GPIO_PIN_0,       /**< 引脚0 */
-    MY_GPIO_PIN_1 = GPIO_PIN_1,       /**< 引脚1 */
-    MY_GPIO_PIN_2 = GPIO_PIN_2,       /**< 引脚2 */
-    MY_GPIO_PIN_3 = GPIO_PIN_3,       /**< 引脚3 */
-    MY_GPIO_PIN_4 = GPIO_PIN_4,       /**< 引脚4 */
-    MY_GPIO_PIN_5 = GPIO_PIN_5,       /**< 引脚5 */
-    MY_GPIO_PIN_6 = GPIO_PIN_6,       /**< 引脚6 */
-    MY_GPIO_PIN_7 = GPIO_PIN_7,       /**< 引脚7 */
-    MY_GPIO_PIN_8 = GPIO_PIN_8,       /**< 引脚8 */
-    MY_GPIO_PIN_9 = GPIO_PIN_9,       /**< 引脚9 */
-    MY_GPIO_PIN_10 = GPIO_PIN_10,     /**< 引脚10 */
-    MY_GPIO_PIN_11 = GPIO_PIN_11,     /**< 引脚11 */
-    MY_GPIO_PIN_12 = GPIO_PIN_12,     /**< 引脚12 */
-    MY_GPIO_PIN_13 = GPIO_PIN_13,     /**< 引脚13 */
-    MY_GPIO_PIN_14 = GPIO_PIN_14,     /**< 引脚14 */
-    MY_GPIO_PIN_15 = GPIO_PIN_15,     /**< 引脚15 */
-    MY_GPIO_PIN_ALL = GPIO_PIN_ALL    /**< 所有引脚 */
-} my_gpio_pin_e;
+    DRV_GPIO_PIN_0 = GPIO_PIN_0,       /**< 引脚0 */
+    DRV_GPIO_PIN_1 = GPIO_PIN_1,       /**< 引脚1 */
+    DRV_GPIO_PIN_2 = GPIO_PIN_2,       /**< 引脚2 */
+    DRV_GPIO_PIN_3 = GPIO_PIN_3,       /**< 引脚3 */
+    DRV_GPIO_PIN_4 = GPIO_PIN_4,       /**< 引脚4 */
+    DRV_GPIO_PIN_5 = GPIO_PIN_5,       /**< 引脚5 */
+    DRV_GPIO_PIN_6 = GPIO_PIN_6,       /**< 引脚6 */
+    DRV_GPIO_PIN_7 = GPIO_PIN_7,       /**< 引脚7 */
+    DRV_GPIO_PIN_8 = GPIO_PIN_8,       /**< 引脚8 */
+    DRV_GPIO_PIN_9 = GPIO_PIN_9,       /**< 引脚9 */
+    DRV_GPIO_PIN_10 = GPIO_PIN_10,     /**< 引脚10 */
+    DRV_GPIO_PIN_11 = GPIO_PIN_11,     /**< 引脚11 */
+    DRV_GPIO_PIN_12 = GPIO_PIN_12,     /**< 引脚12 */
+    DRV_GPIO_PIN_13 = GPIO_PIN_13,     /**< 引脚13 */
+    DRV_GPIO_PIN_14 = GPIO_PIN_14,     /**< 引脚14 */
+    DRV_GPIO_PIN_15 = GPIO_PIN_15,     /**< 引脚15 */
+    DRV_GPIO_PIN_ALL = GPIO_PIN_ALL    /**< 所有引脚 */
+} drv_gpio_pin_e;
 
 /**
  * @brief  驱动层模式枚举
  */
 typedef enum
 {
-    MY_GPIO_MODE_OUTPUT = GPIO_MODE_OUTPUT,   /**< 输出模式 */
-    MY_GPIO_MODE_INPUT = GPIO_MODE_INPUT,     /**< 输入模式 */
-    MY_GPIO_MODE_AF = GPIO_MODE_AF,           /**< 复用功能模式 */
-    MY_GPIO_MODE_ANALOG = GPIO_MODE_ANALOG    /**< 模拟模式 */
-} my_gpio_mode_e;
+    DRV_GPIO_MODE_OUTPUT = GPIO_MODE_OUTPUT,   /**< 输出模式 */
+    DRV_GPIO_MODE_INPUT = GPIO_MODE_INPUT,     /**< 输入模式 */
+    DRV_GPIO_MODE_AF = GPIO_MODE_AF,           /**< 复用功能模式 */
+    DRV_GPIO_MODE_ANALOG = GPIO_MODE_ANALOG    /**< 模拟模式 */
+} drv_gpio_mode_e;
 
 /**
  * @brief  驱动层输出类型枚举
  */
 typedef enum
 {
-    MY_GPIO_OTYPE_PP = GPIO_OTYPE_PP,         /**< 推挽输出 */
-    MY_GPIO_OTYPE_OD = GPIO_OTYPE_OD          /**< 开漏输出 */
-} my_gpio_otype_e;
+    DRV_GPIO_OTYPE_PP = GPIO_OTYPE_PP,         /**< 推挽输出 */
+    DRV_GPIO_OTYPE_OD = GPIO_OTYPE_OD          /**< 开漏输出 */
+} drv_gpio_otype_e;
 
 /**
  * @brief  驱动层速度等级枚举
  */
 typedef enum
 {
-    MY_GPIO_SPEED_LEVEL0 = GPIO_OSPEED_LEVEL0,    /**< 2MHz */
-    MY_GPIO_SPEED_LEVEL1 = GPIO_OSPEED_LEVEL1,    /**< 25MHz */
-    MY_GPIO_SPEED_LEVEL2 = GPIO_OSPEED_LEVEL2,    /**< 50MHz */
-    MY_GPIO_SPEED_LEVEL3 = GPIO_OSPEED_LEVEL3     /**< 200MHz */
-} my_gpio_speed_e;
+    DRV_GPIO_SPEED_LEVEL0 = GPIO_OSPEED_LEVEL0,    /**< 2MHz */
+    DRV_GPIO_SPEED_LEVEL1 = GPIO_OSPEED_LEVEL1,    /**< 25MHz */
+    DRV_GPIO_SPEED_LEVEL2 = GPIO_OSPEED_LEVEL2,    /**< 50MHz */
+    DRV_GPIO_SPEED_LEVEL3 = GPIO_OSPEED_LEVEL3     /**< 200MHz */
+} drv_gpio_speed_e;
 
 /**
  * @brief  驱动层上下拉枚举
  */
 typedef enum
 {
-    MY_GPIO_PUPD_NONE = GPIO_PUPD_NONE,       /**< 无上下拉 */
-    MY_GPIO_PUPD_PULLUP = GPIO_PUPD_PULLUP,   /**< 上拉 */
-    MY_GPIO_PUPD_PULLDOWN = GPIO_PUPD_PULLDOWN /**< 下拉 */
-} my_gpio_pupd_e;
+    DRV_GPIO_PUPD_NONE = GPIO_PUPD_NONE,       /**< 无上下拉 */
+    DRV_GPIO_PUPD_PULLUP = GPIO_PUPD_PULLUP,   /**< 上拉 */
+    DRV_GPIO_PUPD_PULLDOWN = GPIO_PUPD_PULLDOWN /**< 下拉 */
+} drv_gpio_pupd_e;
 ```
 
 ### 3.3 驱动层新增的结构
@@ -164,14 +164,14 @@ typedef enum
  * @note   使用驱动层枚举类型，实现与GD32库的类型隔离
  */
 typedef struct {
-    my_gpio_port_e port;          /**< GPIO端口基地址（MY_GPIO_PORT_A~E） */
-    my_gpio_pin_e pin;            /**< 引脚掩码（MY_GPIO_PIN_0~15） */
-    my_gpio_mode_e mode;          /**< 工作模式（MY_GPIO_MODE_OUTPUT/INPUT/AF/ANALOG） */
-    my_gpio_otype_e otype;        /**< 输出类型（MY_GPIO_OTYPE_PP/OD） */
-    my_gpio_speed_e speed;        /**< 速度配置（MY_GPIO_SPEED_LEVEL0~3） */
-    my_gpio_pupd_e pupd;          /**< 上下拉配置（MY_GPIO_PUPD_NONE/PULLUP/PULLDOWN） */
+    drv_gpio_port_e port;          /**< GPIO端口基地址（MY_GPIO_PORT_A~E） */
+    drv_gpio_pin_e pin;            /**< 引脚掩码（MY_GPIO_PIN_0~15） */
+    drv_gpio_mode_e mode;          /**< 工作模式（MY_GPIO_MODE_OUTPUT/INPUT/AF/ANALOG） */
+    drv_gpio_otype_e otype;        /**< 输出类型（MY_GPIO_OTYPE_PP/OD） */
+    drv_gpio_speed_e speed;        /**< 速度配置（MY_GPIO_SPEED_LEVEL0~3） */
+    drv_gpio_pupd_e pupd;          /**< 上下拉配置（MY_GPIO_PUPD_NONE/PULLUP/PULLDOWN） */
     bool     initial_state;       /**< 初始状态（true=高，false=低） */
-} my_gpio_config_t;
+} drv_gpio_config_t;
 
 /**
  * @brief  GPIO引脚状态（可选的状态管理）
@@ -188,7 +188,7 @@ typedef enum {
  * @param  pin: 触发中断的引脚掩码
  * @note   在中断上下文中调用，必须快速执行，不能阻塞
  */
-typedef void (*my_gpio_exti_callback_t)(my_gpio_port_e port, uint32_t pin);
+typedef void (*drv_gpio_exti_callback_t)(drv_gpio_port_e port, uint32_t pin);
 ```
 
 ---
@@ -204,18 +204,18 @@ typedef void (*my_gpio_exti_callback_t)(my_gpio_port_e port, uint32_t pin);
  * @retval 0=成功, -1=参数错误
  * @note   内部调用GD32库函数完成配置
  * @example
- *   my_gpio_config_t config = {
- *       .port = MY_GPIO_PORT_B,
- *       .pin = MY_GPIO_PIN_5,
- *       .mode = MY_GPIO_MODE_OUTPUT,
- *       .otype = MY_GPIO_OTYPE_PP,
- *       .speed = MY_GPIO_SPEED_LEVEL2,
- *       .pupd = MY_GPIO_PUPD_NONE,
+ *   drv_gpio_config_t config = {
+ *       .port = DRV_GPIOB,
+ *       .pin = DRV_GPIO_PIN_5,
+ *       .mode = DRV_GPIO_MODE_OUTPUT,
+ *       .otype = DRV_GPIO_OTYPE_PP,
+ *       .speed = DRV_GPIO_SPEED_LEVEL2,
+ *       .pupd = DRV_GPIO_PUPD_NONE,
  *       .initial_state = false
  *   };
- *   my_gpio_init(&config);
+ *   drv_gpio_init(&config);
  */
-int32_t my_gpio_init(const my_gpio_config_t *config);
+int32_t drv_gpio_init(const drv_gpio_config_t *config);
 
 /**
  * @brief  反初始化GPIO（恢复复位状态）
@@ -223,7 +223,7 @@ int32_t my_gpio_init(const my_gpio_config_t *config);
  * @param  pin: 引脚掩码
  * @retval 0=成功
  */
-int32_t my_gpio_deinit(my_gpio_port_e port, my_gpio_pin_e pin);
+int32_t drv_gpio_deinit(drv_gpio_port_e port, drv_gpio_pin_e pin);
 ```
 
 ### 4.2 基础操作（inline函数，零开销）
@@ -233,7 +233,7 @@ int32_t my_gpio_deinit(my_gpio_port_e port, my_gpio_pin_e pin);
  * @brief  设置引脚高电平
  * @note   直接封装 gpio_bit_set()
  */
-static inline void my_gpio_set(my_gpio_port_e port, my_gpio_pin_e pin)
+static inline void drv_gpio_set(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
     gpio_bit_set(port, pin);
 }
@@ -242,7 +242,7 @@ static inline void my_gpio_set(my_gpio_port_e port, my_gpio_pin_e pin)
  * @brief  设置引脚低电平
  * @note   直接封装 gpio_bit_reset()
  */
-static inline void my_gpio_reset(my_gpio_port_e port, my_gpio_pin_e pin)
+static inline void drv_gpio_reset(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
     gpio_bit_reset(port, pin);
 }
@@ -251,7 +251,7 @@ static inline void my_gpio_reset(my_gpio_port_e port, my_gpio_pin_e pin)
  * @brief  写入引脚状态
  * @param  state: true=高电平, false=低电平
  */
-static inline void my_gpio_write(my_gpio_port_e port, my_gpio_pin_e pin, bool state)
+static inline void drv_gpio_write(drv_gpio_port_e port, drv_gpio_pin_e pin, bool state)
 {
     if (state)
         gpio_bit_set(port, pin);
@@ -263,7 +263,7 @@ static inline void my_gpio_write(my_gpio_port_e port, my_gpio_pin_e pin, bool st
  * @brief  读取引脚输入状态
  * @retval true=高电平, false=低电平
  */
-static inline bool my_gpio_read(my_gpio_port_e port, my_gpio_pin_e pin)
+static inline bool drv_gpio_read(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
     return (gpio_input_bit_get(port, pin) == SET);
 }
@@ -271,7 +271,7 @@ static inline bool my_gpio_read(my_gpio_port_e port, my_gpio_pin_e pin)
 /**
  * @brief  翻转引脚状态
  */
-static inline void my_gpio_toggle(my_gpio_port_e port, my_gpio_pin_e pin)
+static inline void drv_gpio_toggle(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
     if (gpio_input_bit_get(port, pin) == SET)
         gpio_bit_reset(port, pin);
@@ -288,13 +288,13 @@ static inline void my_gpio_toggle(my_gpio_port_e port, my_gpio_pin_e pin)
  * @param  port: GPIO端口
  * @param  value: 16位值（bit0~bit15对应pin0~pin15）
  */
-void my_gpio_write_port(my_gpio_port_e port, uint16_t value);
+void drv_gpio_write_port(drv_gpio_port_e port, uint16_t value);
 
 /**
  * @brief  读取整个端口状态
  * @retval 16位输入状态
  */
-uint16_t my_gpio_read_port(my_gpio_port_e port);
+uint16_t drv_gpio_read_port(drv_gpio_port_e port);
 ```
 
 ### 4.4 EXTI中断管理
@@ -316,20 +316,20 @@ uint16_t my_gpio_read_port(my_gpio_port_e port);
  *         4. 配置NVIC中断优先级
  * @note   GPIO输入模式由应用层通过my_gpio_init()配置
  */
-int32_t my_gpio_exti_configure(my_gpio_port_e port, my_gpio_pin_e pin,
-                            my_exti_mode_e mode, my_exti_trig_e trigger,
-                            my_gpio_exti_callback_t callback,
+int32_t drv_gpio_exti_configure(drv_gpio_port_e port, drv_gpio_pin_e pin,
+                            drv_exti_mode_e mode, drv_exti_trig_e trigger,
+                            drv_gpio_exti_callback_t callback,
                             uint8_t irq_priority);
 
 /**
  * @brief  使能EXTI中断
  */
-void my_gpio_exti_enable(my_gpio_port_e port, my_gpio_pin_e pin);
+void drv_gpio_exti_enable(drv_gpio_port_e port, drv_gpio_pin_e pin);
 
 /**
  * @brief  禁用EXTI中断
  */
-void my_gpio_exti_disable(my_gpio_port_e port, my_gpio_pin_e pin);
+void drv_gpio_exti_disable(drv_gpio_port_e port, drv_gpio_pin_e pin);
 ```
 
 ### 4.5 GPIO锁定
@@ -341,7 +341,7 @@ void my_gpio_exti_disable(my_gpio_port_e port, my_gpio_pin_e pin);
  * @param  pin: 引脚
  * @note   锁定后无法修改配置，直到下次复位
  */
-void my_gpio_lock(my_gpio_port_e port, my_gpio_pin_e pin);
+void drv_gpio_lock(drv_gpio_port_e port, drv_gpio_pin_e pin);
 ```
 
 ### 4.6 EXTI中断处理函数
@@ -353,11 +353,11 @@ void my_gpio_lock(my_gpio_port_e port, my_gpio_pin_e pin);
  * @note   在gd32f50x_it.c的中断处理函数中调用
  * @example
  *   void EXTI0_IRQHandler(void) {
- *       my_gpio_exti_handler(EXTI_0);
+ *       drv_gpio_exti_handler(EXTI_0);
  *       exti_interrupt_flag_clear(EXTI_0);
  *   }
  */
-void my_gpio_exti_handler(uint32_t exti_line);
+void drv_gpio_exti_handler(uint32_t exti_line);
 ```
 
 ---
@@ -399,34 +399,34 @@ void led_off(void)
 #include "gpio_driver.h"
 
 /* LED配置 */
-static my_gpio_config_t led_config = {
-    .port = MY_GPIO_PORT_B,
-    .pin = MY_GPIO_PIN_5,
-    .mode = MY_GPIO_MODE_OUTPUT,
-    .otype = MY_GPIO_OTYPE_PP,
-    .speed = MY_GPIO_SPEED_LEVEL2,
-    .pupd = MY_GPIO_PUPD_NONE,
+static drv_gpio_config_t led_config = {
+    .port = DRV_GPIOB,
+    .pin = DRV_GPIO_PIN_5,
+    .mode = DRV_GPIO_MODE_OUTPUT,
+    .otype = DRV_GPIO_OTYPE_PP,
+    .speed = DRV_GPIO_SPEED_LEVEL2,
+    .pupd = DRV_GPIO_PUPD_NONE,
     .initial_state = false
 };
 
 void led_init(void)
 {
-    my_gpio_init(&led_config);
+    drv_gpio_init(&led_config);
 }
 
 void led_on(void)
 {
-    my_gpio_set(MY_GPIO_PORT_B, MY_GPIO_PIN_5);
+    drv_gpio_set(DRV_GPIOB, DRV_GPIO_PIN_5);
 }
 
 void led_off(void)
 {
-    my_gpio_reset(MY_GPIO_PORT_B, MY_GPIO_PIN_5);
+    drv_gpio_reset(DRV_GPIOB, DRV_GPIO_PIN_5);
 }
 
 void led_toggle(void)
 {
-    my_gpio_toggle(MY_GPIO_PORT_B, MY_GPIO_PIN_5);
+    drv_gpio_toggle(DRV_GPIOB, DRV_GPIO_PIN_5);
 }
 ```
 
@@ -436,14 +436,14 @@ void led_toggle(void)
 #include "gpio_driver.h"
 
 /* 按键中断回调 */
-static void key_callback(my_gpio_port_e port, uint32_t pin)
+static void key_callback(drv_gpio_port_e port, uint32_t pin)
 {
-    if (port == MY_GPIO_PORT_A && pin == MY_GPIO_PIN_0)
+    if (port == DRV_GPIOA && pin == DRV_GPIO_PIN_0)
     {
         /* 按键按下处理 */
         MY_LOG_D("Key pressed: PA0");
     }
-    else if (port == MY_GPIO_PORT_B && pin == MY_GPIO_PIN_1)
+    else if (port == DRV_GPIOB && pin == DRV_GPIO_PIN_1)
     {
         MY_LOG_D("GSENSOR interrupt: PB1");
     }
@@ -451,22 +451,22 @@ static void key_callback(my_gpio_port_e port, uint32_t pin)
 
 void key_init(void)
 {
-    my_gpio_config_t config = {
-        .port = MY_GPIO_PORT_A,
-        .pin = MY_GPIO_PIN_0,
-        .mode = MY_GPIO_MODE_INPUT,
-        .otype = MY_GPIO_OTYPE_PP,
-        .speed = MY_GPIO_SPEED_LEVEL0,
-        .pupd = MY_GPIO_PUPD_PULLUP,
+    drv_gpio_config_t config = {
+        .port = DRV_GPIOA,
+        .pin = DRV_GPIO_PIN_0,
+        .mode = DRV_GPIO_MODE_INPUT,
+        .otype = DRV_GPIO_OTYPE_PP,
+        .speed = DRV_GPIO_SPEED_LEVEL0,
+        .pupd = DRV_GPIO_PUPD_PULLUP,
         .initial_state = false
     };
 
-    my_gpio_init(&config);
+    drv_gpio_init(&config);
 
     /* 配置EXTI中断（下降沿触发） */
-    my_gpio_exti_configure(MY_GPIO_PORT_A, MY_GPIO_PIN_0,
-                        MY_EXTI_MODE_INTERRUPT,
-                        MY_EXTI_TRIG_FALLING,
+    drv_gpio_exti_configure(DRV_GPIOA, DRV_GPIO_PIN_0,
+                        DRV_EXTI_MODE_INTERRUPT,
+                        DRV_EXTI_TRIG_FALLING,
                         key_callback,
                         2);  // NVIC优先级2
 }
@@ -481,21 +481,21 @@ void key_init(void)
 void button_init(void)
 {
     /* 1. 先初始化GPIO（配置输入模式+使能时钟） */
-    my_gpio_config_t config = {
-        .port = MY_GPIO_PORT_A,
-        .pin = MY_GPIO_PIN_0,
-        .mode = MY_GPIO_MODE_INPUT,
-        .otype = MY_GPIO_OTYPE_PP,
-        .speed = MY_GPIO_SPEED_LEVEL0,
-        .pupd = MY_GPIO_PUPD_PULLUP,
+    drv_gpio_config_t config = {
+        .port = DRV_GPIOA,
+        .pin = DRV_GPIO_PIN_0,
+        .mode = DRV_GPIO_MODE_INPUT,
+        .otype = DRV_GPIO_OTYPE_PP,
+        .speed = DRV_GPIO_SPEED_LEVEL0,
+        .pupd = DRV_GPIO_PUPD_PULLUP,
         .initial_state = false
     };
-    my_gpio_init(&config);  // 自动使能RCU_GPIOA时钟
+    drv_gpio_init(&config);  // 自动使能RCU_GPIOA时钟
 
     /* 2. 再配置EXTI中断（只处理中断相关） */
-    my_gpio_exti_configure(MY_GPIO_PORT_A, MY_GPIO_PIN_0,
-                        MY_EXTI_MODE_INTERRUPT,
-                        MY_EXTI_TRIG_FALLING,
+    drv_gpio_exti_configure(DRV_GPIOA, DRV_GPIO_PIN_0,
+                        DRV_EXTI_MODE_INTERRUPT,
+                        DRV_EXTI_TRIG_FALLING,
                         button_callback,
                         2);
 }
@@ -504,7 +504,7 @@ void button_init(void)
 void button_deinit(void)
 {
     /* 反初始化GPIO */
-    my_gpio_deinit(MY_GPIO_PORT_A, MY_GPIO_PIN_0);
+    drv_gpio_deinit(DRV_GPIOA, DRV_GPIO_PIN_0);
     // 如果PA端口没有其他GPIO使用，自动关闭RCU_GPIOA时钟
 }
 ```
@@ -530,7 +530,7 @@ void button_deinit(void)
 /* gpio_driver.c */
 
 /** GPIO端口到EXTI端口源映射表 */
-static const uint8_t s_gpio_port_source[MY_MAX_GPIO_PORT_COUNT] = {
+static const uint8_t s_gpio_port_source[DRV_MAX_GPIO_PORT_COUNT] = {
     GPIO_PORT_SOURCE_GPIOA,
     GPIO_PORT_SOURCE_GPIOB,
     GPIO_PORT_SOURCE_GPIOC,
@@ -539,18 +539,18 @@ static const uint8_t s_gpio_port_source[MY_MAX_GPIO_PORT_COUNT] = {
 };
 
 /** GPIO使用标志表（5组端口×16位，每bit代表一个GPIO是否已使用） */
-static uint16_t s_gpio_use[MY_MAX_GPIO_PORT_COUNT] = {0};
+static uint16_t s_gpio_use[DRV_MAX_GPIO_PORT_COUNT] = {0};
 
 /** EXTI回调函数表（最多16个EXTI线） */
 typedef struct
 {
-    my_gpio_port_e port;               /**< GPIO端口 */
-    my_gpio_pin_e pin;                 /**< 引脚掩码 */
+    drv_gpio_port_e port;               /**< GPIO端口 */
+    drv_gpio_pin_e pin;                 /**< 引脚掩码 */
     bool is_exti;                      /**< 是否已配置EXTI */
-    my_gpio_exti_callback_t callback;  /**< 回调函数指针 */
+    drv_gpio_exti_callback_t callback;  /**< 回调函数指针 */
 } exti_callback_entry_t;
 
-static exti_callback_entry_t s_exti_table[MY_MAX_EXTI_LINE_COUNT] = {0};
+static exti_callback_entry_t s_exti_table[DRV_MAX_EXTI_LINE_COUNT] = {0};
 ```
 
 **极简架构设计：**
@@ -563,35 +563,35 @@ static exti_callback_entry_t s_exti_table[MY_MAX_EXTI_LINE_COUNT] = {0};
 
 ```c
 /** 使能GPIO时钟 */
-static void gpio_enable_clock(my_gpio_port_e port)
+static void _drv_gpio_enable_clock(drv_gpio_port_e port)
 {
     switch (port)
     {
-        case MY_GPIO_PORT_A:
+        case DRV_GPIOA:
             rcu_periph_clock_enable(RCU_GPIOA);
             break;
-        case MY_GPIO_PORT_B:
+        case DRV_GPIOB:
             rcu_periph_clock_enable(RCU_GPIOB);
             break;
-        case MY_GPIO_PORT_C:
+        case DRV_GPIOC:
             rcu_periph_clock_enable(RCU_GPIOC);
             break;
-        case MY_GPIO_PORT_D:
+        case DRV_GPIOD:
             rcu_periph_clock_enable(RCU_GPIOD);
             break;
-        case MY_GPIO_PORT_E:
+        case DRV_GPIOE:
             rcu_periph_clock_enable(RCU_GPIOE);
             break;
         default:
-            GPIO_LOG_ERROR("Invalid GPIO port for clock enable: 0x%08X", port);
+            DRV_GPIO_LOGE("Invalid GPIO port for clock enable: 0x%08X", port);
             break;
     }
 }
 
 /** 关闭GPIO时钟（智能检查） */
-static void gpio_disable_clock(my_gpio_port_e port)
+static void _drv_gpio_disable_clock(drv_gpio_port_e port)
 {
-    uint8_t port_index = gpio_port_to_index(port);
+    uint8_t port_index = _drv_gpio_port_to_index(port);
 
     /* 检查该端口是否还有其他GPIO在使用 */
     if (s_gpio_use[port_index] == 0)
@@ -599,7 +599,7 @@ static void gpio_disable_clock(my_gpio_port_e port)
         // 无其他GPIO使用，安全关闭时钟
         switch (port)
         {
-            case MY_GPIO_PORT_A:
+            case DRV_GPIOA:
                 rcu_periph_clock_disable(RCU_GPIOA);
                 break;
             // ... 其他端口类似
@@ -609,8 +609,8 @@ static void gpio_disable_clock(my_gpio_port_e port)
 ```
 
 **智能时钟管理：**
-- `my_gpio_init()`：自动使能对应端口时钟
-- `my_gpio_deinit()`：检查位图，无其他GPIO使用时自动关闭时钟
+- `drv_gpio_init()`：自动使能对应端口时钟
+- `drv_gpio_deinit()`：检查位图，无其他GPIO使用时自动关闭时钟
 - **优势**：应用层无需手动管理时钟，驱动层自动处理
 
 ### 6.4 EXTI中断处理
@@ -622,7 +622,7 @@ void EXTI0_IRQHandler(void)
     if (exti_interrupt_flag_get(EXTI_0) != RESET)
     {
         /* 调用驱动层统一处理 */
-        my_gpio_exti_handler(EXTI_0);
+        drv_gpio_exti_handler(EXTI_0);
 
         /* 清除中断标志 */
         exti_interrupt_flag_clear(EXTI_0);
@@ -633,11 +633,11 @@ void EXTI5_9_IRQHandler(void)
 {
     /* 检查EXTI5~9哪个触发 */
     if (exti_interrupt_flag_get(EXTI_5) != RESET) {
-        my_gpio_exti_handler(EXTI_5);
+        drv_gpio_exti_handler(EXTI_5);
         exti_interrupt_flag_clear(EXTI_5);
     }
     if (exti_interrupt_flag_get(EXTI_6) != RESET) {
-        my_gpio_exti_handler(EXTI_6);
+        drv_gpio_exti_handler(EXTI_6);
         exti_interrupt_flag_clear(EXTI_6);
     }
     // ... EXTI7, EXTI8, EXTI9类似
@@ -738,35 +738,35 @@ gpio_config_t config = {
 gpio_register(&config);
 
 // ✅ 新代码
-my_gpio_config_t config = {
-    .port = MY_GPIO_PORT_B,                     // 使用驱动层枚举
-    .pin = MY_GPIO_PIN_5,                       // 使用驱动层枚举
-    .mode = MY_GPIO_MODE_OUTPUT,                // 使用驱动层枚举
-    .otype = MY_GPIO_OTYPE_PP,                  // 使用驱动层枚举
-    .speed = MY_GPIO_SPEED_LEVEL2,              // 使用驱动层枚举
-    .pupd = MY_GPIO_PUPD_NONE,                  // 使用驱动层枚举
+drv_gpio_config_t config = {
+    .port = DRV_GPIOB,                     // 使用驱动层枚举
+    .pin = DRV_GPIO_PIN_5,                       // 使用驱动层枚举
+    .mode = DRV_GPIO_MODE_OUTPUT,                // 使用驱动层枚举
+    .otype = DRV_GPIO_OTYPE_PP,                  // 使用驱动层枚举
+    .speed = DRV_GPIO_SPEED_LEVEL2,              // 使用驱动层枚举
+    .pupd = DRV_GPIO_PUPD_NONE,                  // 使用驱动层枚举
     .initial_state = false
 };
-my_gpio_init(&config);                          // 函数名带my_前缀
+drv_gpio_init(&config);                          // 函数名带my_前缀
 ```
 
 ### 9.2 从suspend/resume迁移
 
 ```c
 // ❌ 旧代码（已废弃）
-my_gpio_suspend(MY_GPIO_PORT_B, MY_GPIO_PIN_5);
+my_gpio_suspend(DRV_GPIOB, DRV_GPIO_PIN_5);
 // ... 进入低功耗
 my_gpio_resume(&led_config);
 
 // ✅ 新代码（使用init/deinit）
 /* 进入低功耗前 */
-my_gpio_deinit(MY_GPIO_PORT_B, MY_GPIO_PIN_5);
+drv_gpio_deinit(DRV_GPIOB, DRV_GPIO_PIN_5);
 // 自动：恢复为输入模式 + 关闭时钟（如无其他GPIO使用）
 
 // ... 进入低功耗
 
 /* 退出低功耗后 */
-my_gpio_init(&led_config);
+drv_gpio_init(&led_config);
 // 自动：使能时钟 + 恢复配置
 ```
 
@@ -814,11 +814,11 @@ ir_decoder_init(&ir_config);
 ### 10.2 命名规范
 
 ```
-驱动层枚举：    my_gpio_port_e, my_gpio_pin_e, my_gpio_mode_e, ...
-配置结构体：    my_gpio_config_t
+驱动层枚举：    drv_gpio_port_e, drv_gpio_pin_e, drv_gpio_mode_e, ...
+配置结构体：    drv_gpio_config_t
 状态枚举：      my_gpio_state_t
-回调函数类型：  my_gpio_exti_callback_t
-公开API：       my_gpio_init, my_gpio_set, my_gpio_read, ...
+回调函数类型：  drv_gpio_exti_callback_t
+公开API：       drv_gpio_init, drv_gpio_set, drv_gpio_read, ...
 ```
 
 ### 10.3 与GD32库的关系

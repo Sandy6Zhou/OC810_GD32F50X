@@ -5,7 +5,7 @@
 ## 1. 文件命名规范
 
 - **格式**: 小写字母 + 下划线，禁止中文、空格、大写、特殊符号
-- **驱动文件**: `模块名_driver.c/h`（示例：`can_driver.c`、`led_driver.h`）
+- **驱动文件**: `drv_模块名.c/h`（示例：`drv_gpio.c`、`drv_uart.h`）
 - **功能文件**: `my_功能名.c/h`（必须添加my前缀，示例：`my_uart_control.c`）
 - **配置文件**: `config_xxx.c/h`（示例：`config_system.c`）
 
@@ -34,22 +34,22 @@
 ## 3. 头文件规范
 
 - **必须添加头文件保护**，格式：`__文件名大写_H__`
+- 驱动文件使用drv前缀：`__DRV_GPIO_H__`
 - 功能文件需包含my前缀：`__MY_UART_CONTROL_H__`
-- 驱动文件无需前缀：`__CAN_DRIVER_H__`
 - **函数声明必须添加详细注释**（@brief、@param、@return、@note）
 
 ```c
-#ifndef __MY_UART_CONTROL_H__
-#define __MY_UART_CONTROL_H__
+#ifndef __DRV_GPIO_H__
+#define __DRV_GPIO_H__
 
 /*********************************************************************
- * @brief   UART控制功能发送数据
- * @param   data 数据指针
- * @param   len 数据长度
- * @return  0表示成功，-1表示失败
- * @note    无
+ * @brief   GPIO驱动设置引脚高电平
+ * @param   port GPIO端口基地址(DRV_GPIOA~DRV_GPIOE)
+ * @param   pin 引脚掩码(DRV_GPIO_PIN_0~15)
+ * @return  无
+ * @note    直接封装gpio_bit_set()
  *********************************************************************/
-int my_uart_control_send(uint8_t *data, uint8_t len);
+void drv_gpio_set(drv_gpio_port_e port, drv_gpio_pin_e pin);
 
 #endif
 ```
@@ -164,9 +164,9 @@ while (timeout < 1000)
 ## 8. 函数命名规范
 
 - **格式**: 小写字母 + 下划线
-- **驱动函数**: `模块名_动词_名词`（示例：`can_init`、`can_send_msg`）
-- **功能函数**: `my_模块名_动词_名词`（必须添加my前缀）
-- **静态函数**: `_模块名_动词_名词`（前缀加下划线）
+- **驱动函数**: `drv_模块名_动词_名词`（必须添加drv前缀，示例：`drv_gpio_init`、`drv_uart_send`）
+- **功能函数**: `my_模块名_动词_名词`（必须添加my前缀，示例：`my_uart_control_send`）
+- **静态函数**: `_drv_模块名_动词_名词`（驱动内部私有函数，示例：`_drv_gpio_enable_clock`）
 
 ### 统一动词规范
 
@@ -196,13 +196,20 @@ while (timeout < 1000)
 
 - **格式**: 大写字母 + 下划线
 - **数值宏必须加括号**: `#define MAX_LEN (8U)`
+- **驱动类型宏**: `DRV_模块名_XXX`（示例：`DRV_GPIO_LOGE`、`DRV_MAX_GPIO_PORT_COUNT`）
 - 功能模块宏添加my前缀：`MY_UART_CONTROL_MAX_LEN`
 
 ```c
-#define LED_ON      (1U)
-#define LED_OFF     (0U)
-#define CAN_MAX_LEN (8U)
-#define MY_UART_CONTROL_MAX_LEN (8U)
+/* 驱动日志宏（业界标准：LOGE/LOGW/LOGI/LOGD） */
+#define DRV_GPIO_LOGE(fmt, ...)    MY_LOG_E("[GPIO] " fmt, ##__VA_ARGS__)
+#define DRV_GPIO_LOGW(fmt, ...)    MY_LOG_W("[GPIO] " fmt, ##__VA_ARGS__)
+#define DRV_GPIO_LOGI(fmt, ...)    MY_LOG_I("[GPIO] " fmt, ##__VA_ARGS__)
+#define DRV_GPIO_LOGD(fmt, ...)    MY_LOG_D("[GPIO] " fmt, ##__VA_ARGS__)
+
+/* 驱动配置宏 */
+#define DRV_MAX_GPIO_PORT_COUNT      (5U)
+#define DRV_MAX_GPIO_PIN_PER_PORT    (16U)
+#define DRV_MAX_EXTI_LINE_COUNT      (16U)
 ```
 
 ---
@@ -222,27 +229,38 @@ while (timeout < 1000)
 
 ### 结构体
 - **格式**: `小写字母+下划线+_t`
+- **驱动结构体**: `drv_模块名_结构名_t`（示例：`drv_gpio_config_t`、`drv_uart_msg_t`）
 - 功能模块添加my前缀：`my_uart_control_msg_t`
 
 ```c
 typedef struct {
-    uint32_t id;              // CAN报文ID
-    uint8_t data_buf[8];      // 报文数据缓冲区
-    uint8_t len;              // 数据长度
-} can_msg_t;
+    drv_gpio_port_e port;         /**< GPIO端口基地址（DRV_GPIOA~DRV_GPIOE） */
+    drv_gpio_pin_e pin;           /**< 引脚掩码（DRV_GPIO_PIN_0~15） */
+    drv_gpio_mode_e mode;         /**< 工作模式（DRV_GPIO_MODE_OUTPUT/INPUT/AF/ANALOG） */
+    drv_gpio_pupd_e pupd;         /**< 上下拉配置（DRV_GPIO_PUPD_NONE/PULLUP/PULLDOWN） */
+    bool initial_state;           /**< 初始状态（true=高电平，false=低电平） */
+} drv_gpio_config_t;
 ```
 
 ### 枚举
-- **格式**: `小写字母+下划线+_e`
-- 枚举成员：`大写字母+下划线`
+- **驱动枚举**: `drv_模块名_枚举名_e`（示例：`drv_gpio_port_e`、`drv_uart_state_e`）
+- 枚举成员：`DRV_模块名_成员名`（示例：`DRV_GPIOA`、`DRV_UART_STATE_IDLE`）
 
 ```c
 typedef enum {
-    CAN_STATE_IDLE = 0,       // 空闲状态
-    CAN_STATE_SEND,           // 发送状态
-    CAN_STATE_RECV,           // 接收状态
-    CAN_STATE_ERROR           // 错误状态
-} can_state_e;
+    DRV_GPIOA = GPIOA,          /**< GPIOA端口 */
+    DRV_GPIOB = GPIOB,          /**< GPIOB端口 */
+    DRV_GPIOC = GPIOC,          /**< GPIOC端口 */
+    DRV_GPIOD = GPIOD,          /**< GPIOD端口 */
+    DRV_GPIOE = GPIOE           /**< GPIOE端口 */
+} drv_gpio_port_e;
+
+typedef enum {
+    DRV_GPIO_MODE_OUTPUT = 0,   /**< 输出模式 */
+    DRV_GPIO_MODE_INPUT,        /**< 输入模式 */
+    DRV_GPIO_MODE_AF,           /**< 复用功能模式 */
+    DRV_GPIO_MODE_ANALOG        /**< 模拟模式 */
+} drv_gpio_mode_e;
 ```
 
 ---
@@ -285,5 +303,9 @@ typedef enum {
 
 ---
 
-**文档版本**: V1.1
-**最后更新**: 2026-04-17
+**文档版本**: V1.2
+**最后更新**: 2026-04-20
+**更新说明**:
+- V1.2: 添加驱动层命名规范（drv_前缀体系）
+- V1.2: 明确驱动/功能/静态函数命名规则
+- V1.1: 完善函数内部空行规范
