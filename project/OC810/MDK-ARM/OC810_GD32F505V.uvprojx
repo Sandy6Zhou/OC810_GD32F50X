@@ -384,14 +384,14 @@
           <GroupName>APP</GroupName>
           <Files>
             <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\app\main.c</FilePath>
-            </File>
-            <File>
               <FileName>gd32f50x_it.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\app\gd32f50x_it.c</FilePath>
+            </File>
+            <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\main.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -677,6 +677,11 @@
               <FileName>gpio_driver.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\driver\gpio_driver.c</FilePath>
+            </File>
+            <File>
+              <FileName>timer_driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\driver\timer_driver.c</FilePath>
             </File>
           </Files>
         </Group>

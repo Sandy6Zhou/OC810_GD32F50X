@@ -35,6 +35,7 @@ OF SUCH DAMAGE.
 #include "gd32f50x_it.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "my_log.h"
 
 #define SRAM_ECC_ERROR_HANDLE(s)    do{}while(1)
 
@@ -66,6 +67,11 @@ void NMI_Handler(void)
 */
 void HardFault_Handler(void)
 {
+    /* 输出 HardFault 信息 */
+    my_log_init();
+    MY_LOG_E("[HARDFAULT] HardFault exception occurred!");
+    MY_LOG_E("[HARDFAULT] SCB->CFSR: 0x%08X", *(volatile uint32_t *)0xE000ED28);
+
     /* if Hard Fault exception occurs, go to infinite loop */
     while (1){
     }
