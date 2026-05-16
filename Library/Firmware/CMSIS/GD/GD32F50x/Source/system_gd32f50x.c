@@ -56,8 +56,9 @@ OF SUCH DAMAGE.
 #endif /* GD32F503 || GD32F505 */
 
 #if (defined(GD32F505))
-//#define __SYSTEM_CLOCK_280M_PLL_IRC8M           (uint32_t)(280000000)
-#define __SYSTEM_CLOCK_280M_PLL_HXTAL           (uint32_t)(280000000)
+//#define __SYSTEM_CLOCK_280M_PLL_IRC8M           (uint32_t)(280000000)  /* 使用IRC8M+PLL到280MHz */
+#define __SYSTEM_CLOCK_280M_PLL_HXTAL           (uint32_t)(280000000)  /* 使用25MHz HXTAL+PLL到275MHz */
+//#define __SYSTEM_CLOCK_IRC8M                    (uint32_t)(__IRC8M)  /* 临时使用内部RC验证 */
 #endif /* GD32F505 */
 
 /* The following is to prevent Vcore fluctuations caused by frequency switching.
@@ -922,11 +923,11 @@ static void system_clock_280m_hxtal(void)
     /* APB1 = AHB/2 */
     RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
 
-    /* CK_PLL0P = (HXTAL)/1 * 35 = 280 MHz */
+    /* CK_PLL0P = (HXTAL)/1 * 11 = 275 MHz (25MHz × 11) */
     RCU_CFG1 &= ~(RCU_CFG1_PLL0SEL | RCU_CFG1_PREDIV0 | RCU_CFG1_PREDIV1);
     RCU_CFG1 |= (RCU_PLL0SRC_HXTAL  |  RCU_PREDIV0_DIV1);
     RCU_CFG0 &= ~(RCU_CFG0_PLL0MF_0_3 | RCU_CFG0_PLL0MF_4_5);
-    RCU_CFG0 |= RCU_PLL0_MUL35;
+    RCU_CFG0 |= RCU_PLL0_MUL11;  /* 修改为11倍频（25×11=275MHz） */
 
     /* enable PLL0 */
     RCU_CTL |= RCU_CTL_PLL0EN;
