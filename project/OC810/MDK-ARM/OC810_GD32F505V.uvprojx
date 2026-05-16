@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>GD32F50X,GD32F50X_HD,GD32F505,USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\code\system;..\code\log;..\code\memory;..\..\..\Library\Firmware\CMSIS;..\..\..\Library\Firmware\CMSIS\GD\GD32F50x\Include;..\..\..\Library\Firmware\GD32F50x_standard_peripheral\Include;..\..\..\Library\Utilities;..\..\..\Third_Party\FreeRTOSv10.3.1\FreeRTOS\Source\include;..\..\..\Third_Party\FreeRTOSv10.3.1\FreeRTOS\Source\portable\GCC\ARM_CM33_NTZ\non_secure;..\..\..\Third_Party\Segger_RTT\RTT\RTT</IncludePath>
+              <IncludePath>..\code\app;..\code\inc;..\code\log;..\code\memory;..\..\..\Library\Firmware\CMSIS;..\..\..\Library\Firmware\CMSIS\GD\GD32F50x\Include;..\..\..\Library\Firmware\GD32F50x_standard_peripheral\Include;..\..\..\Library\Utilities;..\..\..\Third_Party\FreeRTOSv10.3.1\FreeRTOS\Source\include;..\..\..\Third_Party\FreeRTOSv10.3.1\FreeRTOS\Source\portable\GCC\ARM_CM33_NTZ\non_secure;..\..\..\Third_Party\Segger_RTT\RTT\RTT</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -381,17 +381,17 @@
       </TargetOption>
       <Groups>
         <Group>
-          <GroupName>System</GroupName>
+          <GroupName>APP</GroupName>
           <Files>
             <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\system\main.c</FilePath>
+              <FilePath>..\code\app\main.c</FilePath>
             </File>
             <File>
               <FileName>gd32f50x_it.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\system\gd32f50x_it.c</FilePath>
+              <FilePath>..\code\app\gd32f50x_it.c</FilePath>
             </File>
           </Files>
         </Group>
