@@ -141,7 +141,7 @@ typedef enum {
     MY_TIMER_ID_MAX                             // 定时器ID最大值
 } my_timer_id_e;
 
-typedef void (*my_timer_callback_t)(my_timer_id_e timer_id, void *param);  // 定时器回调
+typedef void (*my_timer_callback_t)(my_timer_id_e timer_id);  // 定时器回调
 ```
 
 ---
@@ -412,33 +412,34 @@ int32_t my_msg_queue_reset(my_msg_queue_t queue);
 
 ```c
 int32_t my_timer_create(my_timer_id_e timer_id, my_timer_callback_t callback,
-                        uint32_t period_ms, void *param);
+                        uint32_t period_ms);
 ```
 
 **参数说明：**
 - `timer_id`: 定时器ID（在 my_timer_id_e 中定义）
 - `callback`: 定时器回调函数
 - `period_ms`: 定时器周期（毫秒），0 表示单次定时器
-- `param`: 用户自定义参数（传递给回调函数）
 
 **注意事项：**
 - 定时器创建后处于停止状态，需调用 `my_timer_start` 启动
 
 **使用示例：**
 ```c
-// 回调函数定义
-void my_timer_callback(my_timer_id_e timer_id, void *param)
+// 回调函数定义（通过timer_id区分不同定时器）
+void my_timer_callback(my_timer_id_e timer_id)
 {
-    // 定时器触发处理
     switch (timer_id) {
         case MY_TIMER_ID_ONE_MINUTE:
             // 1分钟定时处理
+            break;
+        case MY_TIMER_ID_TEST:
+            // 测试定时处理
             break;
     }
 }
 
 // 在初始化时创建
-my_timer_create(MY_TIMER_ID_ONE_MINUTE, my_timer_callback, 60000, NULL);
+my_timer_create(MY_TIMER_ID_ONE_MINUTE, my_timer_callback, 60000);
 
 // 需要时启动
 my_timer_start(MY_TIMER_ID_ONE_MINUTE, 0);
