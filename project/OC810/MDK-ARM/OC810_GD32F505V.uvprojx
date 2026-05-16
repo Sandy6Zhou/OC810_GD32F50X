@@ -678,11 +678,6 @@
               <FileType>1</FileType>
               <FilePath>..\code\driver\gpio_driver.c</FilePath>
             </File>
-            <File>
-              <FileName>timer_driver.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\driver\timer_driver.c</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
