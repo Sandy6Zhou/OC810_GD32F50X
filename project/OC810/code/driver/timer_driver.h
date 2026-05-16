@@ -43,13 +43,13 @@
 /* 根据项目实际使用的日志系统修改此处 */
 #include "my_log.h"
 
-#define DRV_TIMER_LOGE(fmt, ...)    MY_LOG_E("[TIMER] " fmt, ##__VA_ARGS__)
-#define DRV_TIMER_LOGW(fmt, ...)    MY_LOG_W("[TIMER] " fmt, ##__VA_ARGS__)
-#define DRV_TIMER_LOGI(fmt, ...)    MY_LOG_I("[TIMER] " fmt, ##__VA_ARGS__)
+#define DRV_TIMER_LOGE(fmt, ...)    MY_LOG_E(fmt, ##__VA_ARGS__)
+#define DRV_TIMER_LOGW(fmt, ...)    MY_LOG_W(fmt, ##__VA_ARGS__)
+#define DRV_TIMER_LOGI(fmt, ...)    MY_LOG_I(fmt, ##__VA_ARGS__)
 #define DRV_TIMER_LOGD(fmt, ...)    do { \
                                         if (DRV_TIMER_LOG_CURRENT_LEVEL >= DRV_TIMER_LOG_LEVEL_DEBUG) \
                                         { \
-                                            MY_LOG_D("[TIMER] " fmt, ##__VA_ARGS__); \
+                                            MY_LOG_D(fmt, ##__VA_ARGS__); \
                                         } \
                                     } while(0)
 

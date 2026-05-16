@@ -43,13 +43,13 @@
 /* 根据项目实际使用的日志系统修改此处 */
 #include "my_log.h"
 
-#define DRV_GPIO_LOGE(fmt, ...)    MY_LOG_E("[GPIO] " fmt, ##__VA_ARGS__)
-#define DRV_GPIO_LOGW(fmt, ...)    MY_LOG_W("[GPIO] " fmt, ##__VA_ARGS__)
-#define DRV_GPIO_LOGI(fmt, ...)    MY_LOG_I("[GPIO] " fmt, ##__VA_ARGS__)
+#define DRV_GPIO_LOGE(fmt, ...)    MY_LOG_E(fmt, ##__VA_ARGS__)
+#define DRV_GPIO_LOGW(fmt, ...)    MY_LOG_W(fmt, ##__VA_ARGS__)
+#define DRV_GPIO_LOGI(fmt, ...)    MY_LOG_I(fmt, ##__VA_ARGS__)
 #define DRV_GPIO_LOGD(fmt, ...)    do { \
                                         if (DRV_GPIO_LOG_CURRENT_LEVEL >= DRV_GPIO_LOG_LEVEL_DEBUG) \
                                         { \
-                                            MY_LOG_D("[GPIO] " fmt, ##__VA_ARGS__); \
+                                            MY_LOG_D(fmt, ##__VA_ARGS__); \
                                         } \
                                     } while(0)
 

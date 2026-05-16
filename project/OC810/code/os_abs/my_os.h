@@ -65,7 +65,7 @@
  * @brief DEBUG级别日志
  */
 #if (MY_OS_LOG_LEVEL >= MY_OS_LOG_LEVEL_DEBUG)
-#define MY_OS_LOGD(fmt, ...)   MY_LOG_D("[OS] " fmt, ##__VA_ARGS__)
+#define MY_OS_LOGD(fmt, ...)   MY_LOG_D(fmt, ##__VA_ARGS__)
 #else
 #define MY_OS_LOGD(fmt, ...)
 #endif
@@ -74,7 +74,7 @@
  * @brief WARNING级别日志
  */
 #if (MY_OS_LOG_LEVEL >= MY_OS_LOG_LEVEL_WARN)
-#define MY_OS_LOGW(fmt, ...)   MY_LOG_W("[OS] " fmt, ##__VA_ARGS__)
+#define MY_OS_LOGW(fmt, ...)   MY_LOG_W(fmt, ##__VA_ARGS__)
 #else
 #define MY_OS_LOGW(fmt, ...)
 #endif
@@ -83,7 +83,7 @@
  * @brief ERROR级别日志
  */
 #if (MY_OS_LOG_LEVEL >= MY_OS_LOG_LEVEL_ERROR)
-#define MY_OS_LOGE(fmt, ...)   MY_LOG_E("[OS] " fmt, ##__VA_ARGS__)
+#define MY_OS_LOGE(fmt, ...)   MY_LOG_E(fmt, ##__VA_ARGS__)
 #else
 #define MY_OS_LOGE(fmt, ...)
 #endif
@@ -91,7 +91,7 @@
 /**
  * @brief INFO级别日志
  */
-#define MY_OS_LOGI(fmt, ...)   MY_LOG_I("[OS] " fmt, ##__VA_ARGS__)
+#define MY_OS_LOGI(fmt, ...)   MY_LOG_I(fmt, ##__VA_ARGS__)
 
 #else /* MY_OS_LOG_ENABLE == 0 */
 

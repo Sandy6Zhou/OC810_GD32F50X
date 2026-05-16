@@ -22,25 +22,25 @@
 /* ==================== 日志宏定义 ==================== */
 
 #if (MY_LOG_CURRENT_LEVEL >= MY_LOG_LEVEL_DEBUG)
-    #define MY_LOG_D(fmt, ...)     my_log_print(MY_LOG_LEVEL_DEBUG, "DBG", __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+    #define MY_LOG_D(fmt, ...)     my_log_print(MY_LOG_LEVEL_DEBUG, "DBG", __FUNCTION__, fmt, ##__VA_ARGS__)
 #else
     #define MY_LOG_D(fmt, ...)
 #endif
 
 #if (MY_LOG_CURRENT_LEVEL >= MY_LOG_LEVEL_INFO)
-    #define MY_LOG_I(fmt, ...)     my_log_print(MY_LOG_LEVEL_INFO, "INF", __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+    #define MY_LOG_I(fmt, ...)     my_log_print(MY_LOG_LEVEL_INFO, "INF", __FUNCTION__, fmt, ##__VA_ARGS__)
 #else
     #define MY_LOG_I(fmt, ...)
 #endif
 
 #if (MY_LOG_CURRENT_LEVEL >= MY_LOG_LEVEL_WARN)
-    #define MY_LOG_W(fmt, ...)     my_log_print(MY_LOG_LEVEL_WARN, "WRN", __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+    #define MY_LOG_W(fmt, ...)     my_log_print(MY_LOG_LEVEL_WARN, "WRN", __FUNCTION__, fmt, ##__VA_ARGS__)
 #else
     #define MY_LOG_W(fmt, ...)
 #endif
 
 #if (MY_LOG_CURRENT_LEVEL >= MY_LOG_LEVEL_ERROR)
-    #define MY_LOG_E(fmt, ...)     my_log_print(MY_LOG_LEVEL_ERROR, "ERR", __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+    #define MY_LOG_E(fmt, ...)     my_log_print(MY_LOG_LEVEL_ERROR, "ERR", __FUNCTION__, fmt, ##__VA_ARGS__)
 #else
     #define MY_LOG_E(fmt, ...)
 #endif
@@ -79,15 +79,13 @@ void my_log_init(void);
  * @brief   打印日志
  * @param   level 日志级别
  * @param   level_str 日志级别字符串
- * @param   file 源文件名
  * @param   function 函数名
- * @param   line 行号
  * @param   fmt 格式化字符串
  * @param   ... 可变参数
  * @return  none
- * @note    自动提取文件名，使用局部缓冲区避免多任务竞争
+ * @note    使用局部缓冲区避免多任务竞争
  *********************************************************************/
-void my_log_print(int level, const char *level_str, const char *file, const char *function, int line, const char *fmt, ...);
+void my_log_print(int level, const char *level_str, const char *function, const char *fmt, ...);
 
 /*********************************************************************
  * @brief   Dump二进制数据

@@ -43,13 +43,13 @@
 /* 根据项目实际使用的日志系统修改此处 */
 #include "my_log.h"
 
-#define DRV_DMA_LOGE(fmt, ...)    MY_LOG_E("[DMA] " fmt, ##__VA_ARGS__)
-#define DRV_DMA_LOGW(fmt, ...)    MY_LOG_W("[DMA] " fmt, ##__VA_ARGS__)
-#define DRV_DMA_LOGI(fmt, ...)    MY_LOG_I("[DMA] " fmt, ##__VA_ARGS__)
+#define DRV_DMA_LOGE(fmt, ...)    MY_LOG_E(fmt, ##__VA_ARGS__)
+#define DRV_DMA_LOGW(fmt, ...)    MY_LOG_W(fmt, ##__VA_ARGS__)
+#define DRV_DMA_LOGI(fmt, ...)    MY_LOG_I(fmt, ##__VA_ARGS__)
 #define DRV_DMA_LOGD(fmt, ...)    do { \
                                         if (DRV_DMA_LOG_CURRENT_LEVEL >= DRV_DMA_LOG_LEVEL_DEBUG) \
                                         { \
-                                            MY_LOG_D("[DMA] " fmt, ##__VA_ARGS__); \
+                                            MY_LOG_D(fmt, ##__VA_ARGS__); \
                                         } \
                                     } while(0)
 

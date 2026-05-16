@@ -59,19 +59,15 @@ void my_log_init(void)
  * @brief   打印日志
  * @param   level 日志级别
  * @param   level_str 日志级别字符串
- * @param   file 源文件名
  * @param   function 函数名
- * @param   line 行号
  * @param   fmt 格式化字符串
  * @param   ... 可变参数
  * @return  none
- * @note    自动提取文件名，使用静态缓冲区+互斥锁保证线程安全
+ * @note    使用静态缓冲区+互斥锁保证线程安全
  *********************************************************************/
-void my_log_print(int level, const char *level_str, const char *file, const char *function, int line, const char *fmt, ...)
+void my_log_print(int level, const char *level_str, const char *function, const char *fmt, ...)
 {
     va_list args;
-    const char *filename = file;
-    const char *p = file;
     int len = 0;
 
     if (level > MY_LOG_CURRENT_LEVEL)
@@ -90,18 +86,15 @@ void my_log_print(int level, const char *level_str, const char *file, const char
 
     va_start(args, fmt);
 
-    /* 提取文件名（去掉路径） */
-    while (*p)
+    /* 生成日志头：[级别] 函数名 */
+    if (function != NULL)
     {
-        if (*p == '/' || *p == '\\')
-        {
-            filename = p + 1;
-        }
-        p++;
+        len = snprintf(sLogPrintBuffer, sizeof(sLogPrintBuffer), "[%s] %s ", level_str, function);
     }
-
-    /* 格式化日志内容：[级别] 文件名:函数名:行号 内容 */
-    len = snprintf(sLogPrintBuffer, sizeof(sLogPrintBuffer), "[%s] %s:%s:%d ", level_str, filename, function, line);
+    else
+    {
+        len = snprintf(sLogPrintBuffer, sizeof(sLogPrintBuffer), "[%s] ", level_str);
+    }
 
     if (len < 0 || len >= sizeof(sLogPrintBuffer))
     {

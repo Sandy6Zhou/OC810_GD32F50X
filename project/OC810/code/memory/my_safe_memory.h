@@ -32,7 +32,7 @@ extern "C" {
         (ptr) = pvPortMalloc(size); \
         if ((ptr) == NULL) \
         { \
-            MY_LOG_E("[MEM] Alloc failed: %d bytes at %s:%d", (size), __FILE__, __LINE__); \
+            MY_LOG_E("Alloc failed: %d bytes", (size)); \
             return (ret_val); \
         } \
     } while (0)
@@ -43,7 +43,7 @@ extern "C" {
         (ptr) = pvPortMalloc(size); \
         if ((ptr) == NULL) \
         { \
-            MY_LOG_E("[MEM] Alloc failed: %d bytes at %s:%d", (size), __FILE__, __LINE__); \
+            MY_LOG_E("Alloc failed: %d bytes", (size)); \
             goto label; \
         } \
     } while (0)
@@ -54,7 +54,7 @@ extern "C" {
         (ptr) = pvPortMalloc(size); \
         if ((ptr) == NULL) \
         { \
-            MY_LOG_E("[MEM] Alloc failed: %d bytes [%s] at %s:%d", (size), (tag), __FILE__, __LINE__); \
+            MY_LOG_E("Alloc failed: %d bytes [%s]", (size), (tag)); \
             return (ret_val); \
         } \
     } while (0)
@@ -74,7 +74,7 @@ extern "C" {
     do { \
         if ((ptr) == NULL) \
         { \
-            MY_LOG_E("[PARAM] NULL pointer at %s:%d", __FILE__, __LINE__); \
+            MY_LOG_E("NULL pointer"); \
             return (ret_val); \
         } \
     } while (0)
@@ -84,7 +84,7 @@ extern "C" {
     do { \
         if ((ptr) == NULL) \
         { \
-            MY_LOG_E("[PARAM] NULL pointer at %s:%d", __FILE__, __LINE__); \
+            MY_LOG_E("NULL pointer"); \
             return; \
         } \
     } while (0)

@@ -48,13 +48,13 @@ extern "C" {
 /* 根据项目实际使用的日志系统修改此处 */
 #include "my_log.h"
 
-#define DRV_UART_LOGE(fmt, ...)    MY_LOG_E("[UART] " fmt, ##__VA_ARGS__)
-#define DRV_UART_LOGW(fmt, ...)     MY_LOG_W("[UART] " fmt, ##__VA_ARGS__)
-#define DRV_UART_LOGI(fmt, ...)     MY_LOG_I("[UART] " fmt, ##__VA_ARGS__)
+#define DRV_UART_LOGE(fmt, ...)    MY_LOG_E(fmt, ##__VA_ARGS__)
+#define DRV_UART_LOGW(fmt, ...)    MY_LOG_W(fmt, ##__VA_ARGS__)
+#define DRV_UART_LOGI(fmt, ...)    MY_LOG_I(fmt, ##__VA_ARGS__)
 #define DRV_UART_LOGD(fmt, ...)    do { \
                                         if (DRV_UART_LOG_CURRENT_LEVEL >= DRV_UART_LOG_LEVEL_DEBUG) \
                                         { \
-                                            MY_LOG_D("[UART] " fmt, ##__VA_ARGS__); \
+                                            MY_LOG_D(fmt, ##__VA_ARGS__); \
                                         } \
                                     } while(0)
 
