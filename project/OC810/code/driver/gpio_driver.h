@@ -63,29 +63,46 @@
 #endif /* DRV_GPIO_LOG_ENABLE */
 
 /*********************************************************************
+ * 错误码定义
+ *********************************************************************/
+
+#define DRV_GPIO_OK                (0)     /**< 成功 */
+#define DRV_GPIO_ERR_FAILED       (-1)    /**< 通用失败 */
+#define DRV_GPIO_ERR_INVALID_PORT (-2)    /**< 无效的GPIO端口 */
+#define DRV_GPIO_ERR_INVALID_PIN  (-3)    /**< 无效的GPIO引脚 */
+#define DRV_GPIO_ERR_NULL_PTR     (-4)    /**< 空指针参数 */
+#define DRV_GPIO_ERR_NOT_INIT     (-5)    /**< 未初始化 */
+#define DRV_GPIO_ERR_BUSY         (-6)    /**< 忙绿 */
+#define DRV_GPIO_ERR_TIMEOUT      (-7)    /**< 超时 */
+
+/*********************************************************************
  * 硬件相关宏定义（便于移植到不同芯片）
  *********************************************************************/
 
 /** GPIO端口组数（GD32F505有5组：A/B/C/D/E） */
-#define DRV_MAX_GPIO_PORT_COUNT      (5U)
+#define DRV_GPIO_PORT_COUNT      (5U)  /**< @deprecated 使用 DRV_GPIO_PORT_MAX 替代 */
 
 /** 每组GPIO的引脚数量（16个：PIN_0~PIN_15） */
 #define DRV_MAX_GPIO_PIN_PER_PORT    (16U)
 
 /** EXTI线数量（16条：EXTI_0~EXTI_15） */
 #define DRV_MAX_EXTI_LINE_COUNT      (16U)
-
 /*********************************************************************
  * 枚举类型定义
  *********************************************************************/
 
+/**
+ * @brief  驱动层GPIO端口枚举
+ * @note   使用独立索引值（0-4），不依赖GD32库基地址，实现完全类型隔离
+ */
 typedef enum
 {
-    DRV_GPIOA = GPIOA,       /**< GPIOA端口 */
-    DRV_GPIOB = GPIOB,       /**< GPIOB端口 */
-    DRV_GPIOC = GPIOC,       /**< GPIOC端口 */
-    DRV_GPIOD = GPIOD,       /**< GPIOD端口 */
-    DRV_GPIOE = GPIOE        /**< GPIOE端口 */
+    DRV_GPIO_PORT_A = 0,       /**< GPIOA端口 */
+    DRV_GPIO_PORT_B,           /**< GPIOB端口 */
+    DRV_GPIO_PORT_C,           /**< GPIOC端口 */
+    DRV_GPIO_PORT_D,           /**< GPIOD端口 */
+    DRV_GPIO_PORT_E,           /**< GPIOE端口 */
+    DRV_GPIO_PORT_MAX          /**< 端口数量上限，用于参数校验 */
 } drv_gpio_port_e;
 
 /**
@@ -112,6 +129,24 @@ typedef enum
     DRV_GPIO_PIN_15 = GPIO_PIN_15,     /**< 引脚15 */
     DRV_GPIO_PIN_ALL = GPIO_PIN_ALL    /**< 所有引脚 */
 } drv_gpio_pin_e;
+
+/**
+ * @brief  驱动层GPIO复用功能枚举
+ * @note   值与GD32库GPIO_AF_*宏一致，实现类型隔离
+ * @note   具体AF映射关系请参考GD32F50x Datasheet中的"Alternate function mapping"表
+ */
+typedef enum
+{
+    DRV_GPIO_AF_0 = GPIO_AF_0,       /**< 复用功能0 */
+    DRV_GPIO_AF_1 = GPIO_AF_1,       /**< 复用功能1 */
+    DRV_GPIO_AF_2 = GPIO_AF_2,       /**< 复用功能2 */
+    DRV_GPIO_AF_3 = GPIO_AF_3,       /**< 复用功能3 */
+    DRV_GPIO_AF_4 = GPIO_AF_4,       /**< 复用功能4 */
+    DRV_GPIO_AF_5 = GPIO_AF_5,       /**< 复用功能5 */
+    DRV_GPIO_AF_6 = GPIO_AF_6,       /**< 复用功能6 */
+    DRV_GPIO_AF_7 = GPIO_AF_7,       /**< 复用功能7 */
+    DRV_GPIO_AF_8 = GPIO_AF_8        /**< 复用功能8 */
+} drv_gpio_af_e;
 
 /**
  * @brief  驱动层GPIO模式枚举
@@ -201,13 +236,13 @@ typedef void (*drv_gpio_exti_callback_t)(drv_gpio_port_e port, uint32_t pin);
  *********************************************************************/
 typedef struct
 {
-    drv_gpio_port_e port;              /**< GPIO端口基地址（DRV_GPIOA~DRV_GPIOE） */
+    drv_gpio_port_e port;              /**< GPIO端口（DRV_GPIO_PORT_A~E） */
     drv_gpio_pin_e pin;                /**< 引脚掩码（DRV_GPIO_PIN_0~15） */
     drv_gpio_mode_e mode;              /**< 工作模式（DRV_GPIO_MODE_OUTPUT/INPUT/AF/ANALOG） */
     drv_gpio_otype_e otype;            /**< 输出类型（DRV_GPIO_OTYPE_PP/OD） */
     drv_gpio_speed_e speed;            /**< 速度配置（DRV_GPIO_SPEED_LEVEL0~3） */
     drv_gpio_pupd_e pupd;              /**< 上下拉配置（DRV_GPIO_PUPD_NONE/PULLUP/PULLDOWN） */
-    uint32_t af;                      /**< 复用功能（GPIO_AF_0~8，仅AF模式有效） */
+    drv_gpio_af_e af;                  /**< 复用功能（DRV_GPIO_AF_0~8，仅AF模式有效） */
     bool initial_state;               /**< 初始状态（true=高电平，false=低电平） */
 } drv_gpio_config_t;
 

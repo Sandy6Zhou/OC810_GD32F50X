@@ -22,8 +22,17 @@
  * 内部宏定义
  *********************************************************************/
 
+ /** GPIO端口枚举到基地址映射表 */
+static uint32_t const s_gpio_port_base[DRV_GPIO_PORT_MAX] = {
+    GPIOA,
+    GPIOB,
+    GPIOC,
+    GPIOD,
+    GPIOE
+};
+
 /** GPIO端口到EXTI端口源映射表 */
-static const uint8_t s_gpio_port_source[DRV_MAX_GPIO_PORT_COUNT] = {
+static const uint8_t s_gpio_port_source[DRV_GPIO_PORT_MAX] = {
     GPIO_PORT_SOURCE_GPIOA,
     GPIO_PORT_SOURCE_GPIOB,
     GPIO_PORT_SOURCE_GPIOC,
@@ -41,7 +50,7 @@ static const uint8_t s_gpio_port_source[DRV_MAX_GPIO_PORT_COUNT] = {
  *  DRV_GPIO_PORT_C -> s_gpio_use[2] [bit0~bit15]
  *  DRV_GPIO_PORT_D -> s_gpio_use[3] [bit0~bit15]
  *  DRV_GPIO_PORT_E -> s_gpio_use[4] [bit0~bit15] */
-static uint16_t s_gpio_use[DRV_MAX_GPIO_PORT_COUNT] = {0};
+static uint16_t s_gpio_use[DRV_GPIO_PORT_MAX] = {0};
 
 /** EXTI回调函数表（最多16个EXTI线） */
 typedef struct
@@ -57,7 +66,6 @@ static exti_callback_entry_t s_exti_table[DRV_MAX_EXTI_LINE_COUNT] = {0};
 /*********************************************************************
  * 内部辅助函数声明
  *********************************************************************/
-static uint8_t _drv_gpio_port_to_index(drv_gpio_port_e port);
 static void _drv_gpio_enable_clock(drv_gpio_port_e port);
 static void _drv_gpio_disable_clock(drv_gpio_port_e port);
 static uint32_t _drv_gpio_pin_to_exti_line(uint32_t pin);
@@ -75,64 +83,75 @@ static IRQn_Type gpio_pin_to_irqn(uint32_t pin);
  *********************************************************************/
 int32_t drv_gpio_init(const drv_gpio_config_t *config)
 {
-    uint8_t port_index;
+    uint32_t pin_mask;
     uint32_t pin_bit;
+    uint32_t gpio_base;  /* GD32 GPIO基地址 */
 
     if (config == NULL)
     {
-        return -1;
+        return DRV_GPIO_ERR_NULL_PTR;
     }
 
-    /* 获取端口索引 */
-    port_index = _drv_gpio_port_to_index(config->port);
-    if (port_index >= DRV_MAX_GPIO_PORT_COUNT)
+    /* 参数校验 */
+    if (config->port >= DRV_GPIO_PORT_MAX)
     {
         DRV_GPIO_LOGE("Invalid GPIO port: %d", config->port);
-        return -1;
+        return DRV_GPIO_ERR_INVALID_PORT;
     }
 
-    /* 检查是否已使用 */
-    pin_bit = __CLZ(config->pin);
-    if (s_gpio_use[port_index] & (1U << (15 - pin_bit)))
+    /* 获取GD32 GPIO基地址 */
+    gpio_base = s_gpio_port_base[config->port];
+
+    /* 检查是否有引脚已使用（仅警告，不阻止配置） */
+    pin_mask = config->pin;
+    while (pin_mask != 0)
     {
-        DRV_GPIO_LOGW("GPIO already init: port=%d, pin=%d", port_index, 15 - pin_bit);
-        return 0;
+        /* __CLZ 计算前导零数量，对于 32 位值：pin_bit = 31 - 前导零数 = 最高位位置 */
+        pin_bit = 31U - __CLZ(pin_mask);
+        if (s_gpio_use[config->port] & (1U << pin_bit))
+        {
+            DRV_GPIO_LOGW("GPIO already in use: port=%d, pin=%d, will reconfigure", config->port, pin_bit);
+        }
+        pin_mask &= ~(1U << pin_bit);  /* 清除已处理的位 */
     }
 
     /* 使能时钟 */
     _drv_gpio_enable_clock(config->port);
 
-    /* 配置GPIO模式 */
-    gpio_mode_set(config->port, config->mode, config->pupd, config->pin);
+    /* 配置复用功能（仅AF模式，先配置AF再配置模式） */
+    if (config->mode == DRV_GPIO_MODE_AF)
+    {
+        gpio_af_set(gpio_base, config->af, config->pin);
+    }
+
+    /* 配置GPIO模式（支持多引脚） */
+    gpio_mode_set(gpio_base, config->mode, config->pupd, config->pin);
 
     /* 配置输出类型和速度（仅输出/复用模式） */
     if ((config->mode == DRV_GPIO_MODE_OUTPUT) || (config->mode == DRV_GPIO_MODE_AF))
     {
-        gpio_output_options_set(config->port, config->otype, config->speed, config->pin);
+        gpio_output_options_set(gpio_base, config->otype, config->speed, config->pin);
 
-        /* 设置初始状态 */
+        /* 设置初始状态（仅当显式指定时） */
         if (config->initial_state)
         {
-            gpio_bit_set(config->port, config->pin);
-        }
-        else
-        {
-            gpio_bit_reset(config->port, config->pin);
+            gpio_bit_set(gpio_base, config->pin);
         }
     }
 
-    /* 配置复用功能（仅AF模式） */
-    if (config->mode == DRV_GPIO_MODE_AF)
+    /* 标记所有引脚已使用（支持多引脚） */
+    pin_mask = config->pin;
+    while (pin_mask != 0)
     {
-        gpio_af_set(config->port, config->af, config->pin);
+        /* __CLZ 计算前导零数量，对于 32 位值：pin_bit = 31 - 前导零数 = 最高位位置 */
+        pin_bit = 31U - __CLZ(pin_mask);
+        s_gpio_use[config->port] |= (1U << pin_bit);
+        pin_mask &= ~(1U << pin_bit);  /* 清除已处理的位 */
     }
 
-    /* 标记GPIO已使用 */
-    s_gpio_use[port_index] |= (1U << (15 - pin_bit));
+    DRV_GPIO_LOGD("GPIO init: port=%d, pins=0x%04X, mode=%d", config->port, config->pin, config->mode);
 
-    DRV_GPIO_LOGD("GPIO init: port=%d, pin=%d, mode=%d", port_index, 15 - pin_bit, config->mode);
-
-    return 0;
+    return DRV_GPIO_OK;
 }
 
 /*********************************************************************
@@ -144,42 +163,57 @@ int32_t drv_gpio_init(const drv_gpio_config_t *config)
  *********************************************************************/
 int32_t drv_gpio_deinit(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
-    uint8_t port_index;
+    uint32_t pin_mask;
     uint32_t pin_bit;
     uint32_t exti_line;
+    uint32_t gpio_base;  /* GD32 GPIO基地址 */
 
-    /* 获取端口索引 */
-    port_index = _drv_gpio_port_to_index(port);
-    if (port_index >= DRV_MAX_GPIO_PORT_COUNT)
+    /* 参数校验 */
+    if (port >= DRV_GPIO_PORT_MAX)
     {
         DRV_GPIO_LOGE("Invalid GPIO port: %d", port);
-        return -1;
+        return DRV_GPIO_ERR_INVALID_PORT;
     }
 
-    /* 清除GPIO使用标志 */
-    pin_bit = __CLZ(pin);
-    s_gpio_use[port_index] &= ~(1U << (15 - pin_bit));
+    /* 获取GD32 GPIO基地址 */
+    gpio_base = s_gpio_port_base[port];
 
-    /* 禁用EXTI中断 */
-    exti_line = _drv_gpio_pin_to_exti_line(pin);
-    if (s_exti_table[exti_line - EXTI_0].is_exti)
+    /* 禁用EXTI中断（支持多引脚） */
+    pin_mask = pin;
+    while (pin_mask != 0)
     {
-        drv_gpio_exti_disable(port, pin);
+        pin_bit = __CLZ(pin_mask);
+        exti_line = _drv_gpio_pin_to_exti_line(1U << (15 - pin_bit));
+        if (exti_line < DRV_MAX_EXTI_LINE_COUNT && s_exti_table[exti_line - EXTI_0].is_exti)
+        {
+            drv_gpio_exti_disable(port, 1U << (15 - pin_bit));
+        }
+        pin_mask &= ~(1U << (15 - pin_bit));  /* 清除已处理的位 */
     }
 
-    /* 恢复为默认输入模式 */
-    gpio_mode_set(port, DRV_GPIO_MODE_INPUT, DRV_GPIO_PUPD_NONE, pin);
+    /* 恢复为默认输入模式（支持多引脚） */
+    gpio_mode_set(gpio_base, DRV_GPIO_MODE_INPUT, DRV_GPIO_PUPD_NONE, pin);
+
+    /* 清除所有GPIO使用标志（支持多引脚） */
+    pin_mask = pin;
+    while (pin_mask != 0)
+    {
+        /* __CLZ 计算前导零数量，对于 32 位值：pin_bit = 31 - 前导零数 = 最高位位置 */
+        pin_bit = 31U - __CLZ(pin_mask);
+        s_gpio_use[port] &= ~(1U << pin_bit);
+        pin_mask &= ~(1U << pin_bit);  /* 清除已处理的位 */
+    }
 
     /* 检查该端口是否还有其他GPIO在使用 */
-    if (s_gpio_use[port_index] == 0)
+    if (s_gpio_use[port] == 0)
     {
         _drv_gpio_disable_clock(port);
-        DRV_GPIO_LOGD("GPIO clock disabled: port=%d", port_index);
+        DRV_GPIO_LOGD("GPIO clock disabled: port=%d", port);
     }
 
-    DRV_GPIO_LOGD("GPIO deinit: port=%d, pin=%d", port_index, 15 - pin_bit);
+    DRV_GPIO_LOGD("GPIO deinit: port=%d, pins=0x%04X", port, pin);
 
-    return 0;
+    return DRV_GPIO_OK;
 }
 
 /*********************************************************************
@@ -188,24 +222,28 @@ int32_t drv_gpio_deinit(drv_gpio_port_e port, drv_gpio_pin_e pin)
 
 /*********************************************************************
  * @brief   同时设置多个引脚
- * @param   port GPIO端口基地址(DRV_GPIOA~DRV_GPIOE)
+ * @param   port GPIO端口枚举值
  * @param   value 16位输出值（bit0~bit15对应pin0~pin15）
  * @note    写入整个端口的输出寄存器
  *********************************************************************/
 void drv_gpio_write_port(drv_gpio_port_e port, uint16_t value)
 {
-    gpio_port_write(port, value);
+    uint32_t gpio_base = s_gpio_port_base[port];
+
+    gpio_port_write(gpio_base, value);
 }
 
 /*********************************************************************
  * @brief   读取整个端口状态
- * @param   port GPIO端口基地址
+ * @param   port GPIO端口枚举值
  * @return  16位输入状态
  * @note    读取整个端口的输入寄存器
  *********************************************************************/
 uint16_t drv_gpio_read_port(drv_gpio_port_e port)
 {
-    return gpio_input_port_get(port);
+    uint32_t gpio_base = s_gpio_port_base[port];
+
+    return gpio_input_port_get(gpio_base);
 }
 
 /*********************************************************************
@@ -230,12 +268,11 @@ int32_t drv_gpio_exti_configure(drv_gpio_port_e port, drv_gpio_pin_e pin,
     uint32_t exti_line;
     IRQn_Type irqn;
     uint8_t port_source;
-    uint8_t port_index;
     uint32_t exti_index;
 
     if (callback == NULL)
     {
-        return -1;
+        return DRV_GPIO_ERR_NULL_PTR;
     }
 
     /* 获取EXTI线号和中断号 */
@@ -244,12 +281,11 @@ int32_t drv_gpio_exti_configure(drv_gpio_port_e port, drv_gpio_pin_e pin,
     exti_index = exti_line - EXTI_0;
 
     /* 获取端口源 */
-    port_index = _drv_gpio_port_to_index(port);
-    if (port_index >= DRV_MAX_GPIO_PORT_COUNT)
+    if (port >= DRV_GPIO_PORT_MAX)
     {
-        return -1;
+        return DRV_GPIO_ERR_INVALID_PORT;
     }
-    port_source = s_gpio_port_source[port_index];
+    port_source = s_gpio_port_source[port];
 
     /* 连接GPIO到EXTI */
     gpio_exti_source_select(port_source, (uint8_t)(__CLZ(pin)));
@@ -271,7 +307,7 @@ int32_t drv_gpio_exti_configure(drv_gpio_port_e port, drv_gpio_pin_e pin,
 
     DRV_GPIO_LOGD("GPIO EXTI configured: pin=%d, line=%d, irqn=%d", exti_index, exti_line, irqn);
 
-    return 0;
+    return DRV_GPIO_OK;
 }
 
 /*********************************************************************
@@ -304,7 +340,7 @@ void drv_gpio_exti_disable(drv_gpio_port_e port, drv_gpio_pin_e pin)
     /* 清除EXTI回调表 */
     exti_line = _drv_gpio_pin_to_exti_line(pin);
     exti_index = exti_line - EXTI_0;
-    s_exti_table[exti_index].port = GPIOA;
+    s_exti_table[exti_index].port = DRV_GPIO_PORT_A;
     s_exti_table[exti_index].pin = (drv_gpio_pin_e)0;
     s_exti_table[exti_index].callback = NULL;
     s_exti_table[exti_index].is_exti = false;
@@ -321,13 +357,14 @@ void drv_gpio_exti_disable(drv_gpio_port_e port, drv_gpio_pin_e pin)
 
 /*********************************************************************
  * @brief   锁定GPIO引脚配置
- * @param   port GPIO端口基地址
+ * @param   port GPIO端口枚举值
  * @param   pin 引脚掩码
  * @note    锁定后无法修改配置，直到下次复位
  *********************************************************************/
 void drv_gpio_lock(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
-    gpio_pin_lock(port, pin);
+    uint32_t gpio_base = s_gpio_port_base[port];
+    gpio_pin_lock(gpio_base, pin);
 }
 
 /*********************************************************************
@@ -366,75 +403,57 @@ void drv_gpio_exti_handler(uint32_t exti_line)
  *********************************************************************/
 
 /*********************************************************************
- * @brief   端口基地址转索引（A=0, B=1, C=2, D=3, E=4）
- * @param   port GPIO端口基地址
- * @return  端口索引（0~4），无效端口返回DRV_MAX_GPIO_PORT_COUNT
- *********************************************************************/
-static uint8_t _drv_gpio_port_to_index(drv_gpio_port_e port)
-{
-    uint8_t index = (uint8_t)((port - GPIOA) / 0x400U);
-
-    /* 检查索引有效性 */
-    if (index >= DRV_MAX_GPIO_PORT_COUNT)
-    {
-        return DRV_MAX_GPIO_PORT_COUNT; /* 返回无效值 */
-    }
-
-    return index;
-}
-
-/*********************************************************************
  * @brief   使能GPIO时钟
- * @param   port GPIO端口基地址
+ * @param   port GPIO端口枚举值
  * @note    根据端口使能对应的RCU时钟
  *********************************************************************/
 static void _drv_gpio_enable_clock(drv_gpio_port_e port)
 {
     switch (port)
     {
-        case DRV_GPIOA:
+        case DRV_GPIO_PORT_A:
             rcu_periph_clock_enable(RCU_GPIOA);
             break;
-        case DRV_GPIOB:
+        case DRV_GPIO_PORT_B:
             rcu_periph_clock_enable(RCU_GPIOB);
             break;
-        case DRV_GPIOC:
+        case DRV_GPIO_PORT_C:
             rcu_periph_clock_enable(RCU_GPIOC);
             break;
-        case DRV_GPIOD:
+        case DRV_GPIO_PORT_D:
             rcu_periph_clock_enable(RCU_GPIOD);
             break;
-        case DRV_GPIOE:
+        case DRV_GPIO_PORT_E:
             rcu_periph_clock_enable(RCU_GPIOE);
             break;
         default:
-            DRV_GPIO_LOGE("Invalid GPIO port for clock enable: 0x%08X", port);
+            DRV_GPIO_LOGE("Invalid GPIO port for clock enable: %d", port);
             break;
     }
 }
 
 /*********************************************************************
  * @brief   关闭GPIO时钟
- * @param   port GPIO端口基地址(DRV_GPIOA~DRV_GPIOE)
+ * @param   port GPIO端口枚举值
  * @note    根据端口关闭对应的RCU时钟
  *********************************************************************/
 static void _drv_gpio_disable_clock(drv_gpio_port_e port)
 {
     switch (port)
     {
-        case DRV_GPIOA:
+        case DRV_GPIO_PORT_A:
             rcu_periph_clock_disable(RCU_GPIOA);
             break;
-        case DRV_GPIOB:
+        case DRV_GPIO_PORT_B:
             rcu_periph_clock_disable(RCU_GPIOB);
             break;
-        case DRV_GPIOC:
+        case DRV_GPIO_PORT_C:
             rcu_periph_clock_disable(RCU_GPIOC);
             break;
-        case DRV_GPIOD:
+        case DRV_GPIO_PORT_D:
             rcu_periph_clock_disable(RCU_GPIOD);
             break;
-        case DRV_GPIOE:
+        case DRV_GPIO_PORT_E:
             rcu_periph_clock_disable(RCU_GPIOE);
             break;
         default:
