@@ -24,7 +24,7 @@ project/OC810/code/os_abs/
 ### 1.4 版本信息
 
 - **当前版本**：V1.2
-- **更新日期**：2026.05.06
+- **更新日期**：2026.05.07
 - **作者**：伍玉蛟 (wuyujiao@jimiiot.com)
 
 ---
@@ -58,7 +58,8 @@ my_os 模块
 │
 ├── 定时器管理（Timer Management）
 │   ├── 创建/删除定时器
-│   ├── 启动/停止/重置定时器
+│   ├── 启动/停止/重置定时器（支持任务/中断上下文）
+│   ├── 修改定时器周期（支持任务/中断上下文）
 │   └── 周期/单次定时器支持
 │
 ├── 时间服务（Time Service）
@@ -98,21 +99,29 @@ my_os 模块
 
 ## 3. 类型定义
 
-### 3.1 任务相关类型
+### 3.1 OS抽象层基础类型
+
+```c
+typedef BaseType_t    my_base_type_t;         // 基础类型（返回值、状态标志）
+typedef UBaseType_t   my_ubase_type_t;        // 无符号基础类型（优先级、计数器）
+typedef TickType_t    my_tick_type_t;         // 系统滴答类型（时间计算、延时）
+```
+
+### 3.2 任务相关类型
 
 ```c
 typedef TaskHandle_t    my_task_handle_t;      // 任务句柄
-typedef UBaseType_t     my_task_priority_t;     // 任务优先级
-typedef void (*my_task_func_t)(void *param);    // 任务函数类型
+typedef my_ubase_type_t my_task_priority_t;    // 任务优先级（基于 my_ubase_type_t）
+typedef void (*my_task_func_t)(void *param);   // 任务函数类型
 ```
 
-### 3.2 信号量类型
+### 3.3 信号量类型
 
 ```c
-typedef SemaphoreHandle_t my_sem_t;             // 信号量句柄
+typedef SemaphoreHandle_t my_sem_t;            // 信号量句柄
 ```
 
-### 3.3 消息相关类型
+### 3.4 消息相关类型
 
 ```c
 typedef QueueHandle_t my_msg_queue_t;           // 消息队列句柄
@@ -131,7 +140,7 @@ typedef struct {
 } my_msg_t;
 ```
 
-### 3.4 定时器相关类型
+### 3.5 定时器相关类型
 
 ```c
 typedef enum {
@@ -141,7 +150,8 @@ typedef enum {
     MY_TIMER_ID_MAX                             // 定时器ID最大值
 } my_timer_id_e;
 
-typedef void (*my_timer_callback_t)(TimerHandle_t timer_handle);  // 定时器回调
+typedef void* my_timer_handle_t;  // 定时器句柄（透明指针）
+typedef void (*my_timer_callback_t)(my_timer_handle_t timer_handle);  // 定时器回调
 ```
 
 ---
@@ -193,7 +203,7 @@ my_task_create(&task_handle, "my_task", 1024, my_task, NULL, 1);
 #### 4.1.2 my_task_delay_until - 周期性延时
 
 ```c
-void my_task_delay_until(uint32_t period_ms, TickType_t *last_wake_time);
+void my_task_delay_until(uint32_t period_ms, my_tick_type_t *last_wake_time);
 ```
 
 **参数说明：**
@@ -207,7 +217,7 @@ void my_task_delay_until(uint32_t period_ms, TickType_t *last_wake_time);
 **使用示例：**
 ```c
 // 在任务中维护 last_wake_time 变量
-static TickType_t last_wake_time = 0;
+static my_tick_type_t last_wake_time = 0;
 
 void my_task(void *param)
 {
@@ -295,11 +305,14 @@ my_sem_t my_sem_mutex_create(void);
 // 获取信号量（任务上下文）
 int32_t my_sem_take(my_sem_t sem, uint32_t timeout_ms);
 
+// 获取信号量（中断上下文）
+int32_t my_sem_take_from_isr(my_sem_t sem, my_base_type_t *higher_priority_task_woken);
+
 // 释放信号量（任务上下文）
 int32_t my_sem_give(my_sem_t sem);
 
 // 释放信号量（中断上下文）
-int32_t my_sem_give_from_isr(my_sem_t sem, BaseType_t *higher_priority_task_woken);
+int32_t my_sem_give_from_isr(my_sem_t sem, my_base_type_t *higher_priority_task_woken);
 
 // 删除信号量
 #define my_sem_delete(sem)
@@ -310,6 +323,34 @@ int32_t my_sem_give_from_isr(my_sem_t sem, BaseType_t *higher_priority_task_woke
   - `0`: 立即返回
   - `portMAX_DELAY`: 永久等待
   - 其他值: 等待指定毫秒数
+
+**使用示例：**
+
+任务上下文：
+```c
+// 获取信号量，超时1000ms
+if (my_sem_take(sem, 1000) == 0) {
+    // 成功获取
+} else {
+    // 超时
+}
+```
+
+中断上下文：
+```c
+void EXTI_IRQHandler(void)
+{
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    // 在中断中获取信号量
+    if (my_sem_take_from_isr(sem, &xHigherPriorityTaskWoken) == 0) {
+        // 成功获取
+    }
+
+    // 如果需要，触发上下文切换
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+```
 
 ---
 
@@ -323,25 +364,26 @@ int32_t my_sem_give_from_isr(my_sem_t sem, BaseType_t *higher_priority_task_woke
 #define my_critical_exit()
 
 // 进入临界区并保存中断状态（可嵌套，支持任务和中断上下文）
-#define my_critical_enter_save()
+// 命名带 _from_isr 是与 FreeRTOS 原生 API 保持一致
+#define my_critical_enter_from_isr()
 
 // 退出临界区并恢复中断状态
-#define my_critical_exit_restore(state)
+#define my_critical_exit_from_isr(state)
 ```
 
 **使用示例：**
 ```c
-// 任务上下文
+// 任务上下文（简单场景）
 my_critical_enter();
 // 临界区代码
 shared_variable++;
 my_critical_exit();
 
-// 可嵌套临界区（中断安全）
-UBaseType_t state = my_critical_enter_save();
+// 可嵌套临界区（任务/中断通用）
+my_ubase_type_t state = my_critical_enter_from_isr();
 // 临界区代码
 shared_variable++;
-my_critical_exit_restore(state);
+my_critical_exit_from_isr(state);
 ```
 
 ---
@@ -385,14 +427,14 @@ int32_t my_msg_send(my_msg_queue_t queue, const my_msg_t *msg, uint32_t timeout_
 
 // 发送消息（中断上下文）
 int32_t my_msg_send_from_isr(my_msg_queue_t queue, const my_msg_t *msg,
-                              BaseType_t *higher_priority_task_woken);
+                              my_base_type_t *higher_priority_task_woken);
 
 // 接收消息（任务上下文）
 int32_t my_msg_recv(my_msg_queue_t queue, my_msg_t *msg, uint32_t timeout_ms);
 
 // 接收消息（中断上下文）
 int32_t my_msg_recv_from_isr(my_msg_queue_t queue, my_msg_t *msg,
-                              BaseType_t *higher_priority_task_woken);
+                              my_base_type_t *higher_priority_task_woken);
 
 // 查询消息数量
 uint32_t my_msg_queue_get_count(my_msg_queue_t queue);
@@ -422,35 +464,35 @@ int32_t my_timer_create(my_timer_id_e timer_id, my_timer_callback_t callback,
 
 **注意事项：**
 - 定时器创建后处于停止状态，需调用 `my_timer_start` 启动
+- 每个定时器应使用独立的回调函数，无需在回调中判断 timer_id
 
 **使用示例：**
 ```c
-// 回调函数定义（直接接收TimerHandle_t）
-void my_timer_callback(TimerHandle_t timer_handle)
+// 每个定时器使用独立的回调函数
+void one_minute_timer_callback(my_timer_handle_t timer_handle)
 {
-    // 获取timer_id
-    my_timer_id_e timer_id = (my_timer_id_e)(uint32_t)pvTimerGetTimerID(timer_handle);
+    // 1分钟定时处理（不需要判断timer_id）
+}
 
-    switch (timer_id) {
-        case MY_TIMER_ID_ONE_MINUTE:
-            // 1分钟定时处理
-            break;
-        case MY_TIMER_ID_TEST:
-            // 测试定时处理
-            break;
-    }
+void test_timer_callback(my_timer_handle_t timer_handle)
+{
+    // 测试定时处理
 }
 
 // 在初始化时创建
-my_timer_create(MY_TIMER_ID_ONE_MINUTE, my_timer_callback, 60000);
+my_timer_create(MY_TIMER_ID_ONE_MINUTE, one_minute_timer_callback, 60000);
+my_timer_create(MY_TIMER_ID_TEST, test_timer_callback, 1000);
 
 // 需要时启动
 my_timer_start(MY_TIMER_ID_ONE_MINUTE, 0);
+my_timer_start(MY_TIMER_ID_TEST, 0);
 ```
 
 ---
 
 #### 4.5.2 定时器操作接口
+
+**任务上下文 API：**
 
 ```c
 // 启动定时器
@@ -459,7 +501,7 @@ int32_t my_timer_start(my_timer_id_e timer_id, uint32_t timeout_ms);
 // 停止定时器
 int32_t my_timer_stop(my_timer_id_e timer_id);
 
-// 删除定时器
+// 删除定时器（⚠️不能在中断中调用）
 int32_t my_timer_delete(my_timer_id_e timer_id);
 
 // 查询是否运行中
@@ -467,7 +509,31 @@ bool my_timer_is_running(my_timer_id_e timer_id);
 
 // 重置定时器计数
 int32_t my_timer_reset(my_timer_id_e timer_id);
+
+// 修改定时器周期
+int32_t my_timer_change(my_timer_id_e timer_id, uint32_t new_period_ms);
 ```
+
+**中断上下文 API（FromISR）：**
+
+```c
+// 在中断中启动定时器
+int32_t my_timer_start_from_isr(my_timer_id_e timer_id);
+
+// 在中断中停止定时器
+int32_t my_timer_stop_from_isr(my_timer_id_e timer_id);
+
+// 在中断中重置定时器
+int32_t my_timer_reset_from_isr(my_timer_id_e timer_id);
+
+// 在中断中修改定时器周期
+int32_t my_timer_change_from_isr(my_timer_id_e timer_id, uint32_t new_period_ms);
+```
+
+**重要说明：**
+- ⚠️ `my_timer_delete()` **不能在中断中调用**，因为删除操作需要释放内存，在中断中不安全
+- 如需在中断中删除定时器，请设置标志位，在任务中检查并执行删除
+- FromISR 系列函数仅用于中断上下文，不能阻塞
 
 ---
 
@@ -571,6 +637,7 @@ void system_init(void)
 | 接口 | 任务上下文 | 中断上下文 |
 |------|-----------|-----------|
 | `my_sem_take` | ✅ | ❌ |
+| `my_sem_take_from_isr` | ❌ | ✅ |
 | `my_sem_give` | ✅ | ❌ |
 | `my_sem_give_from_isr` | ❌ | ✅ |
 | `my_msg_send` | ✅ | ❌ |
@@ -622,6 +689,12 @@ my_msg_queue_create(20, sizeof(event_t));
 1. **定时器ID管理**：在 `my_timer_id_e` 中定义所有定时器ID
 2. **回调函数执行时间**：定时器回调在 Timer Task 中执行，不应阻塞
 3. **周期 vs 单次**：`period_ms > 0` 为周期定时器，`period_ms = 0` 为单次定时器
+4. **独立回调函数**：推荐每个定时器使用独立的回调函数，避免在回调中判断 timer_id
+5. **中断安全**：
+   - 删除定时器（`my_timer_delete`）只能在任务上下文中调用
+   - 启动/停止/重置/修改周期操作提供 FromISR 版本供中断使用
+   - 如需在中断中删除定时器，使用标志位机制在任务中执行
+6. **创建与启停分离**：定时器创建后处于停止状态，需显式调用 `my_timer_start` 启动
 
 ---
 
@@ -717,7 +790,7 @@ typedef enum {
 ```c
 void task1(void *param)
 {
-    static TickType_t last_wake_time = 0;
+    static my_tick_type_t last_wake_time = 0;
     last_wake_time = my_os_get_tick();
 
     while (1) {
@@ -728,7 +801,7 @@ void task1(void *param)
 
 void task2(void *param)
 {
-    static TickType_t last_wake_time = 0;
+    static my_tick_type_t last_wake_time = 0;
     last_wake_time = my_os_get_tick();
 
     while (1) {
@@ -794,9 +867,9 @@ void EXTI_IRQHandler(void)
 ## 11. 版本历史
 
 | 版本 | 日期 | 变更说明 |
-|------|------|---------|
-| V1.2 | 2026.05.06 | 改进 my_task_delay_until 支持多任务；添加便捷宏和使用示例 |
-| V1.1 | 2026.05.06 | 添加日志宏配置和 systick 获取接口 |
+|------|------|----------|
+| V1.2 | 2026.05.07 | 封装FreeRTOS基础类型为my_前缀类型（my_base_type_t/my_ubase_type_t/my_tick_type_t）；更新临界区宏命名 |
+| V1.1 | 2026.05.07 | 添加my_sem_take_from_isr中断安全API；完善定时器中断安全API；修正回调示例 |
 | V1.0 | 2026.05.06 | 初始版本，创建 os_abs 目录，迁移 my_common 为 my_os |
 
 ---
