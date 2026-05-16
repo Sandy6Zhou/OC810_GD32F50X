@@ -37,6 +37,7 @@ OF SUCH DAMAGE.
 #include "task.h"
 #include "my_log.h"
 #include "timer_driver.h"
+#include "dma_driver.h"
 
 #define SRAM_ECC_ERROR_HANDLE(s)    do{}while(1)
 
@@ -293,5 +294,302 @@ void TIMER16_IRQHandler(void)
     {
         timer_interrupt_flag_clear(TIMER16, TIMER_INT_FLAG_UP);
         drv_timer_run_update_callback(DRV_TIMER_16);
+    }
+}
+
+/*********************************************************************
+ * DMA 中断服务函数
+ *
+ * 设计说明：
+ *   1. 每个 DMA 通道独立实现 ISR，检查 FTF/HTF/ERR 中断标志
+ *   2. 清除中断标志后，调用 drv_dma_run_callback 执行回调
+ *   3. 遵循原厂示例规范：使用 DMA_INT_FLAG_GIF 清除标志
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief   DMA0 Channel 0 中断服务函数
+ *********************************************************************/
+void DMA0_Channel0_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH0, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH0, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH0, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH0, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH0, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH0, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH0, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH0, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH0, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA0 Channel 1 中断服务函数
+ *********************************************************************/
+void DMA0_Channel1_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH1, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH1, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH1, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH1, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH1, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH1, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH1, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH1, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH1, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA0 Channel 2 中断服务函数
+ *********************************************************************/
+void DMA0_Channel2_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH2, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH2, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH2, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH2, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH2, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH2, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH2, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH2, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH2, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA0 Channel 3 中断服务函数
+ *********************************************************************/
+void DMA0_Channel3_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH3, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH3, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH3, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH3, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH3, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH3, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH3, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH3, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH3, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA0 Channel 4 中断服务函数
+ *********************************************************************/
+void DMA0_Channel4_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH4, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH4, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH4, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH4, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH4, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH4, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH4, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH4, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH4, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA0 Channel 5 中断服务函数
+ *********************************************************************/
+void DMA0_Channel5_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH5, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH5, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH5, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH5, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH5, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH5, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH5, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH5, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH5, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA0 Channel 6 中断服务函数
+ *********************************************************************/
+void DMA0_Channel6_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH6, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH6, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH6, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH6, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH6, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH6, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA0, DMA_CH6, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA0, DMA_CH6, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA0_CH6, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA1 Channel 0 中断服务函数
+ *********************************************************************/
+void DMA1_Channel0_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH0, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH0, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH0, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH0, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH0, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH0, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH0, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH0, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH0, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA1 Channel 1 中断服务函数
+ *********************************************************************/
+void DMA1_Channel1_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH1, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH1, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH1, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH1, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH1, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH1, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH1, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH1, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH1, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA1 Channel 2 中断服务函数
+ *********************************************************************/
+void DMA1_Channel2_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH2, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH2, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH2, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH2, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH2, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH2, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH2, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH2, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH2, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA1 Channel 3 中断服务函数
+ *********************************************************************/
+void DMA1_Channel3_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH3, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH3, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH3, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH3, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH3, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH3, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH3, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH3, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH3, DRV_DMA_INT_ERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA1 Channel 4 中断服务函数
+ *********************************************************************/
+void DMA1_Channel4_IRQHandler(void)
+{
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH4, DMA_INT_FLAG_FTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH4, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH4, DRV_DMA_INT_FTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH4, DMA_INT_FLAG_HTF))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH4, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH4, DRV_DMA_INT_HTF);
+    }
+
+    if(SET == dma_interrupt_flag_get(DMA1, DMA_CH4, DMA_INT_FLAG_ERR))
+    {
+        dma_interrupt_flag_clear(DMA1, DMA_CH4, DMA_INT_FLAG_GIF);
+        drv_dma_run_callback(DRV_DMA1_CH4, DRV_DMA_INT_ERR);
     }
 }

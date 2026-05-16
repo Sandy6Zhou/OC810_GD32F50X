@@ -68,4 +68,19 @@ void TIMER7_UP_IRQHandler(void);
 void TIMER15_IRQHandler(void);
 void TIMER16_IRQHandler(void);
 
+/* DMA interrupt handlers */
+void DMA0_Channel0_IRQHandler(void);
+void DMA0_Channel1_IRQHandler(void);
+void DMA0_Channel2_IRQHandler(void);
+void DMA0_Channel3_IRQHandler(void);
+void DMA0_Channel4_IRQHandler(void);
+void DMA0_Channel5_IRQHandler(void);
+void DMA0_Channel6_IRQHandler(void);
+
+void DMA1_Channel0_IRQHandler(void);
+void DMA1_Channel1_IRQHandler(void);
+void DMA1_Channel2_IRQHandler(void);
+void DMA1_Channel3_IRQHandler(void);
+void DMA1_Channel4_IRQHandler(void);
+
 #endif /* GD32F50X_IT_H */

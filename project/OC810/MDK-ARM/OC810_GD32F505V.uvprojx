@@ -683,6 +683,11 @@
               <FileType>1</FileType>
               <FilePath>..\code\driver\timer_driver.c</FilePath>
             </File>
+            <File>
+              <FileName>dma_driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\driver\dma_driver.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
