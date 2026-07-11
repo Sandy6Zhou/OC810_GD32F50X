@@ -495,6 +495,7 @@ static int _drv_uart_enable_interrupt(drv_uart_port_e port)
 {
     uint32_t usart_base;
     drv_uart_ctrl_t *ctrl;
+    uint32_t timeout = 10000U;
 
     if (port >= DRV_UART_PORT_MAX)
     {
@@ -504,17 +505,30 @@ static int _drv_uart_enable_interrupt(drv_uart_port_e port)
     usart_base = s_usart_base[port];
     ctrl = &s_uart_ctrl[port];
 
+    /* 清除残留的IDLEF标志（防止上电/软复位后残留的IDLEF触发中断）
+     * 注：GD32F50x IDLEF清除方式：读STAT0 + 读DATA（参考官方IDLE_receive_interrupt示例）
+     * 等待IDLEF置位后再清除，带超时保护防止死循环 */
+    while ((RESET == usart_flag_get(usart_base, USART_FLAG_IDLE)) && (timeout > 0U))
+    {
+        timeout--;
+    }
+    (void)USART_STAT0(usart_base);         /* 读STAT0 */
+    (void)usart_data_receive(usart_base);  /* 读DATA，清除IDLEF */
+
     /* 使能接收中断 */
     usart_interrupt_enable(usart_base, USART_INT_RBNE);
 
-    /* 如果启用IDLE中断 */
+    /* 如果启用IDLE中断，使能IDLE中断 */
     if (ctrl->config.use_idle == true)
     {
         usart_interrupt_enable(usart_base, USART_INT_IDLE);
     }
 
-    /* 使能错误中断 */
-    usart_interrupt_enable(usart_base, USART_INT_ERR);
+    /* 使能错误中断（ERRIE 仅在 DMA 接收使能时有效，参考手册 ERRIE 描述） */
+    if (ctrl->config.use_dma_rx == true)
+    {
+        usart_interrupt_enable(usart_base, USART_INT_ERR);
+    }
 
     /* 使能 NVIC 中断控制器（必须！） */
     nvic_irq_enable(s_usart_nvic_config[port].irqn,
@@ -538,6 +552,7 @@ static int _drv_uart_enable_interrupt(drv_uart_port_e port)
 static int _drv_uart_disable_interrupt(drv_uart_port_e port)
 {
     uint32_t usart_base;
+    uint32_t timeout = 10000U;
 
     if (port >= DRV_UART_PORT_MAX)
     {
@@ -549,6 +564,14 @@ static int _drv_uart_disable_interrupt(drv_uart_port_e port)
     usart_interrupt_disable(usart_base, USART_INT_RBNE);
     usart_interrupt_disable(usart_base, USART_INT_IDLE);
     usart_interrupt_disable(usart_base, USART_INT_ERR);
+
+    /* 清除残留的IDLEF标志（防止关闭中断期间残留，下次使能时误触发） */
+    while ((RESET == usart_flag_get(usart_base, USART_FLAG_IDLE)) && (timeout > 0U))
+    {
+        timeout--;
+    }
+    (void)USART_STAT0(usart_base);        /* 读STAT0 */
+    (void)usart_data_receive(usart_base);  /* 读DATA，清除IDLEF */
 
     /* 禁用 NVIC 中断控制器 */
     nvic_irq_disable(s_usart_nvic_config[port].irqn);
@@ -2514,8 +2537,8 @@ void drv_uart_irq_handler(drv_uart_port_e port)
     /* 2. 处理IDLE中断（空闲帧，一帧数据接收完成） */
     if ((ctrl->irq_enabled & DRV_UART_IRQ_IDLE) && (stat0 & USART_STAT0_IDLEF) && (int0 & USART_CTL0_IDLEIE))
     {
-        /* 清除IDLE标志：读STAT0后读DATA */
-        (void)USART_DATA(usart_base);
+        /* 清除IDLE标志：读STAT0 + 读DATA（参考官方示例） */
+        (void)usart_data_receive(usart_base);
 
         /* 如果启用DMA接收，计算DMA已接收的数据长度 */
         if (ctrl->config.use_dma_rx == true)
@@ -2618,50 +2641,42 @@ void drv_uart_irq_handler(drv_uart_port_e port)
         }
     }
 
-    /* 3. 处理错误中断（只检查使能的错误标志） */
+    /* 3. 处理错误中断（仅 DMA 接收模式下 ERRIE 有效，覆盖 FERR/ORERR/NERR）
+     * 注：PERR 由 CTL0 的 PERRIE 独立控制，不在 ERRIE 范围内。
+     * 非 DMA 模式下错误标志通过 RBNE 中断连带报告。
+     * 错误标志清除方式：读 STAT0 + 读 DATA。
+     */
     if (ctrl->irq_enabled & DRV_UART_IRQ_ERR)
     {
-        /* 帧错误 */
-        if (stat0 & USART_STAT0_FERR)
+        uint32_t err_flags = stat0 & (USART_STAT0_FERR | USART_STAT0_ORERR |
+                                       USART_STAT0_NERR);
+        if (err_flags)
         {
-            USART_STAT0(usart_base) &= ~USART_STAT0_FERR;  /* 写1清除 */
+            /* 读DATA清除所有错误标志（读STAT0已在ISR入口完成） */
+            (void)usart_data_receive(usart_base);
 
-            if (ctrl->config.error_callback != NULL)
+            if (err_flags & USART_STAT0_FERR)
             {
-                ctrl->config.error_callback(port, DRV_UART_ERROR_FRAME);
+                if (ctrl->config.error_callback != NULL)
+                {
+                    ctrl->config.error_callback(port, DRV_UART_ERROR_FRAME);
+                }
             }
-        }
 
-        /* 溢出错误 */
-        if (stat0 & USART_STAT0_ORERR)
-        {
-            USART_STAT0(usart_base) &= ~USART_STAT0_ORERR;
-
-            if (ctrl->config.error_callback != NULL)
+            if (err_flags & USART_STAT0_ORERR)
             {
-                ctrl->config.error_callback(port, DRV_UART_ERROR_OVERRUN);
+                if (ctrl->config.error_callback != NULL)
+                {
+                    ctrl->config.error_callback(port, DRV_UART_ERROR_OVERRUN);
+                }
             }
-        }
 
-        /* 噪声错误 */
-        if (stat0 & USART_STAT0_NERR)
-        {
-            USART_STAT0(usart_base) &= ~USART_STAT0_NERR;
-
-            if (ctrl->config.error_callback != NULL)
+            if (err_flags & USART_STAT0_NERR)
             {
-                ctrl->config.error_callback(port, DRV_UART_ERROR_NOISE);
-            }
-        }
-
-        /* 奇偶校验错误 */
-        if (stat0 & USART_STAT0_PERR)
-        {
-            USART_STAT0(usart_base) &= ~USART_STAT0_PERR;
-
-            if (ctrl->config.error_callback != NULL)
-            {
-                ctrl->config.error_callback(port, DRV_UART_ERROR_PARITY);
+                if (ctrl->config.error_callback != NULL)
+                {
+                    ctrl->config.error_callback(port, DRV_UART_ERROR_NOISE);
+                }
             }
         }
     }
@@ -2674,9 +2689,9 @@ void drv_uart_irq_handler(drv_uart_port_e port)
     }
 
     /* 5. 处理TC中断（发送完成） */
-    if (stat0 & USART_STAT0_TC)
+    if ((stat0 & USART_STAT0_TC) && (int0 & USART_CTL0_TCIE))
     {
-        USART_STAT0(usart_base) &= ~USART_STAT0_TC;
+        USART_STAT0(usart_base) = ~USART_STAT0_TC;  /* 写0清除TC */
 
         /* TODO: 发送完成回调 */
     }

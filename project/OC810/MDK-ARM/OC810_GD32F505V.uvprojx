@@ -414,6 +414,21 @@
               <FilePath>..\code\app\my_dvr.c</FilePath>
             </File>
             <File>
+              <FileName>my_dvr_parse.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_dvr_parse.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_dvr_cmd.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_dvr_cmd.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_dvr_heartbeat.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_dvr_heartbeat.c</FilePath>
+            </File>
+            <File>
               <FileName>my_gsensor.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\app\my_gsensor.c</FilePath>

@@ -54,13 +54,13 @@
  * @brief CTRL模块任务栈大小
  * @note CTRL控制LED/Buzzer/Key，逻辑较复杂
  */
-#define MY_CTRL_TASK_STACK_SIZE         (configMINIMAL_STACK_SIZE * 6)
+#define MY_CTRL_TASK_STACK_SIZE         (configMINIMAL_STACK_SIZE * 2)
 
 /**
  * @brief DVR模块任务栈大小
  * @note DVR视频芯片控制，逻辑中等
  */
-#define MY_DVR_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE * 2)
+#define MY_DVR_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE * 4)
 
 /**
  * @brief GSENSOR模块任务栈大小
@@ -114,7 +114,7 @@
 /**
  * @brief DVR模块消息队列深度
  */
-#define MY_DVR_MSG_QUEUE_DEPTH       (8)
+#define MY_DVR_MSG_QUEUE_DEPTH       (10)
 
 /**
  * @brief GSENSOR模块消息队列深度

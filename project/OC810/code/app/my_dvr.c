@@ -4,34 +4,36 @@
 **文件描述：        DVR视频模块驱动任务实现
 **当前版本：        V1.0
 **作    者：        伍玉蛟 (wuyujiao@jimiiot.com)
-**完成日期：        2026.06.08
+**完成日期：        2026.06.15
 *********************************************************************
 ** 功能描述：       1. DVR视频模块通信与控制
-**                 2. 视频流状态管理
+**                 2. 电源管理（PA8控制）
 **                 3. 永久阻塞式消息处理循环
 *********************************************************************/
+
 #include "my_comm.h"
 
 /*********************************************************************
  * 内部宏定义
  *********************************************************************/
-/** 定义UART接收缓冲区大小 */
-#define D_UART_RX_BUF_SIZE 256
 
-/** 定义UART发送缓冲区大小 */
-#define D_UART_TX_BUF_SIZE 256
+ /** DVR电源控制引脚 */
+#define D_DVR_POWER_PORT        DRV_GPIO_PORT_A
+#define D_DVR_POWER_PIN         DRV_GPIO_PIN_8
+
+/** DVR电源开启后等待稳定时间（毫秒） */
+#define D_DVR_POWER_ON_DELAY_MS (200U)
 
 /** 定义RingBuffer缓冲区大小 */
-#define D_UART_RING_BUF_SIZE 512
+#define D_UART_RING_BUF_SIZE    512
 
-/** 定义心跳包间隔时间 */
-#define D_DVR_HEARTBEAT_INTERVAL     1000
-#define D_DVR_WAIT_HEARTBEAT_TIMEOUT 1500
+/** 定义UART发送缓冲区大小（需覆盖最大帧，含大数据1024字节payload）
+ *  TX队列节点数据会拷贝到此缓冲区，再由UART中断发送 */
+#define D_UART_TX_BUF_SIZE      (D_DVR_TX_ESCAPE_LARGE_BUF_SIZE)
 
 /*********************************************************************
  * 内部数据结构定义
  *********************************************************************/
-
 
 /*********************************************************************
  * 内部辅助函数声明
@@ -41,48 +43,61 @@ static void my_dvr_uart_tx_callback(drv_uart_port_e port, uint16_t len);
 static void my_dvr_uart_error_callback(drv_uart_port_e port, drv_uart_error_e err);
 static int  my_dvr_uart_send_wrapper(const uint8_t *data, uint16_t len);
 static void my_dvr_msg_handler(const my_msg_t *msg);
+static void my_dvr_power_on(void);
+static void my_dvr_power_off(void);
+static void my_dvr_power_restart(void);
 
 /*********************************************************************
  * 内部全局变量
  *********************************************************************/
 
-/** 发送缓冲区 */
+/** 发送缓冲区（UART驱动使用） */
 static uint8_t s_tx_buf[D_UART_TX_BUF_SIZE];
 
-/** RingBuffer缓冲区 */
+/** RingBuffer缓冲区（UART接收使用） */
 static uint8_t s_ring_buf[D_UART_RING_BUF_SIZE];
 
 /** RingBuffer控制块 */
 static my_rb_t s_ringbuf;
 
-/** 发送队列控制块 */
+/** 发送队列控制块（TX动态内存管理） */
 static my_tq_ctrl_t s_tx_queue;
 
-/** UART配置结构体 */
+/** DVR电源控制GPIO配置 */
+static const drv_gpio_config_t s_dvr_power_gpio_cfg = {
+        .port = D_DVR_POWER_PORT,
+        .pin = D_DVR_POWER_PIN,
+        .mode = DRV_GPIO_MODE_OUTPUT,
+        .otype = DRV_GPIO_OTYPE_PP,
+        .speed = DRV_GPIO_SPEED_LEVEL0,
+        .pupd = DRV_GPIO_PUPD_NONE,
+        .af = DRV_GPIO_AF_0,
+        .initial_state = false
+    };
+
+/** UART配置结构体（依赖上述缓冲区和控制块） */
 static drv_uart_config_t uart_cfg = {
         .port = DRV_UART_PORT_USART1,
         .baudrate = 115200,
-        .rx_buf = NULL,              /* RingBuffer 模式下无需 rx_buf */
+        .rx_buf = NULL,         /* RingBuffer 模式下无需 rx_buf */
         .rx_buf_size = 0,
-        .dma_rx_buf = NULL,
+        .dma_rx_buf = NULL,     /* RingBuffer 模式下无需 dma_rx_buf */
         .dma_rx_buf_size = 0,
         .ringbuf = &s_ringbuf,
-        .use_dma_rx = false,
-        .use_idle = true,
-        .use_ringbuf = true,
+        .use_dma_rx = false,    /* RingBuffer 模式下无需 dma_rx_buf */
+        .use_idle = true,       /* RingBuffer 模式下需 idle空闲中断 */
+        .use_ringbuf = true,    /* 使用 RingBuffer */
         .use_dma_tx = false,
-        .tx_mode = UART_TX_MODE_INTERRUPT,    /**< 中断方式发送 */
-        .tx_buf = s_tx_buf,
-        .tx_buf_size = D_UART_TX_BUF_SIZE,
-        .use_tx_mutex = false,    /**< 不使用发送互斥锁 */
-        .is_wakeup_capable = false,
-        .rx_callback = my_dvr_uart_rx_callback,
-        .tx_callback = my_dvr_uart_tx_callback,
-        .error_callback = my_dvr_uart_error_callback
+        .tx_mode = UART_TX_MODE_INTERRUPT,   /* 中断方式发送 */
+        .tx_buf = s_tx_buf,                  /* 发送缓冲区 */
+        .tx_buf_size = D_UART_TX_BUF_SIZE,   /* 发送缓冲区大小 */
+        .use_tx_mutex = false,               /* 不使用发送互斥锁 */
+        .is_wakeup_capable = false,          /* 不使用唤醒功能 */
+        .rx_callback = my_dvr_uart_rx_callback,         /* 接收回调函数 */
+        .tx_callback = my_dvr_uart_tx_callback,         /* 发送完成回调函数 */
+        .error_callback = my_dvr_uart_error_callback    /* 错误回调函数 */
     };
 
-/** 等待心跳包超时计数器 */
-static uint8_t s_wait_heartbeat_timeout_cnt = 0;
 /*********************************************************************
  * 内部辅助函数实现
  *********************************************************************/
@@ -156,39 +171,64 @@ static void my_dvr_uart_tx_callback(drv_uart_port_e port, uint16_t len)
 }
 
 /*********************************************************************
- * @brief   发送心跳包回调函数
- * @param   param 回调参数
+ * @brief   DVR模块电源开启
  * @return  none
- * @note    通过消息队列发送心跳包消息
+ * @note    开启流程：PA8拉高 → 等待电源稳定 → 初始化UART
+ *          心跳模块在收到DVR版本查询后自动启动
  *********************************************************************/
-static void my_dvr_send_heartbeat_cb(void *param)
+static void my_dvr_power_on(void)
 {
-    (void)param;
-    my_msg_t msg = {
-        .id = MY_MSG_ID_DVR_SEND_HEARTBEAT,
-        .data = NULL,
-        .len = 0
-    };
+    int ret;
 
-    my_msg_send(MSG_QUEUE_DVR, &msg, 0);
+    /* 开启DVR模块电源 */
+    drv_gpio_set(D_DVR_POWER_PORT, D_DVR_POWER_PIN);
+    MY_LOG_I("DVR power ON");
+
+    /* 等待DVR模块电源稳定 */
+    my_task_delay_ms(D_DVR_POWER_ON_DELAY_MS);
+
+    /* 初始化UART通信 */
+    ret = drv_uart_init(&uart_cfg);
+    if (ret != 0)
+    {
+        MY_LOG_E("UART init failed after power on");
+        return;
+    }
+
+    MY_LOG_I("DVR UART ready, start heartbeat monitor");
+    my_dvr_heartbeat_start();
 }
 
 /*********************************************************************
- * @brief   处理心跳包超时
+ * @brief   DVR模块电源关闭
  * @return  none
- * @note    复位协议解析状态机
+ * @note    关闭流程：停止心跳 → 反初始化UART（含GPIO） → PA8拉低
  *********************************************************************/
-static void my_dvr_wait_heartbeat_cb(void *param)
+static void my_dvr_power_off(void)
 {
-    (void)param;
+    /* 停止心跳模块 */
+    my_dvr_heartbeat_stop();
 
-    my_msg_t msg = {
-        .id = MY_MSG_ID_DVR_WAIT_HEARTBEAT_TOUT,
-        .data = NULL,
-        .len = 0
-    };
+    /* 反初始化UART外设（含GPIO引脚） */
+    drv_uart_deinit(DRV_UART_PORT_USART1);
 
-    my_msg_send(MSG_QUEUE_DVR, &msg, 0);
+    /* 关闭DVR模块电源 */
+    drv_gpio_reset(D_DVR_POWER_PORT, D_DVR_POWER_PIN);
+    MY_LOG_I("DVR power OFF");
+}
+
+/*********************************************************************
+ * @brief   DVR模块电源重启（心跳异常恢复）
+ * @return  none
+ * @note    关闭流程：断电 → 500ms放电 → 重新上电
+ *          上电后等待DVR发版本查询来重新启动心跳
+ *********************************************************************/
+static void my_dvr_power_restart(void)
+{
+    MY_LOG_I("DVR power restart...");
+    my_dvr_power_off();
+    my_task_delay_ms(500);    /* 断电放电时间 */
+    my_dvr_power_on();
 }
 
 /*********************************************************************
@@ -206,19 +246,27 @@ static void my_dvr_msg_handler(const my_msg_t *msg)
     switch (msg->id)
     {
         case MY_MSG_ID_SYS_ACTIVE:
-            MY_LOG_I("System activated");
-            /* TODO: 初始化视频芯片、启动视频流 */
+            MY_LOG_I("System activated, power on DVR");
+            my_dvr_power_on();
             break;
 
         case MY_MSG_ID_SYS_SLEEP:
-            MY_LOG_I("System sleep requested");
-            /* TODO: 停止视频流、关闭芯片电源 */
+            MY_LOG_I("Sleep requested, power off DVR");
+            my_tq_flush(&s_tx_queue);
+            my_dvr_power_off();
+            TASK_STATE_DVR = TASK_STATE_SLEEP;
+
+            my_task_delay_ms(50);    /* 等待日志输出 */
             my_task_suspend(NULL);
             break;
 
         case MY_MSG_ID_SYS_SHUTDOWN:
-            MY_LOG_W("Shutdown requested");
-            /* TODO: 保存视频配置、关闭芯片 */
+            MY_LOG_W("Shutdown requested, power off DVR");
+            my_tq_flush(&s_tx_queue);
+            my_dvr_power_off();
+            TASK_STATE_DVR = TASK_STATE_SHUTDOWN;
+
+            my_task_delay_ms(50);    /* 等待日志输出 */
             my_task_suspend(NULL);
             break;
 
@@ -233,7 +281,7 @@ static void my_dvr_msg_handler(const my_msg_t *msg)
             break;
 
         case MY_MSG_ID_DVR_UART_TX_DONE:
-            MY_LOG_I("UART TX complete, len=%d", msg->len);
+            MY_LOG_D("UART TX complete, len=%d", msg->len);
             /* 释放已发送节点的内存，并触发下一包发送 */
             my_tq_tx_done(&s_tx_queue);
             my_tq_process(&s_tx_queue, my_dvr_uart_send_wrapper);
@@ -247,13 +295,28 @@ static void my_dvr_msg_handler(const my_msg_t *msg)
                 msg_size = sizeof(temp_buf);
             }
 
+            /* 从UART读取数据存入临时缓冲区 （UART中读取实际就是从RingBuffer中读取） */
             read_len = drv_uart_read(DRV_UART_PORT_USART1, temp_buf, msg_size);
             if (read_len > 0)
             {
-                // my_dvr_parse_process(temp_buf, read_len);
+                my_dvr_parse_process(temp_buf, read_len);
             }
             break;
         }
+
+        case MY_MSG_ID_DVR_PARSE_TIMEOUT:
+            MY_LOG_W("Parse timeout, resetting state machine");
+            my_dvr_parse_reset();
+            break;
+
+        case MY_MSG_ID_DVR_SEND_HEARTBEAT:
+        case MY_MSG_ID_DVR_WAIT_HEARTBEAT_TOUT:
+            my_dvr_heartbeat_on_msg(msg);
+            break;
+
+        case MY_MSG_ID_DVR_HEARTBEAT_RESTART:
+            my_dvr_power_restart();
+            break;
 
         default:
             MY_LOG_W("Unknown message: id=0x%04X", msg->id);
@@ -264,20 +327,25 @@ static void my_dvr_msg_handler(const my_msg_t *msg)
 /*********************************************************************
  * @brief   DVR任务初始化
  * @return  none
- * @note    初始化RingBuffer、发送队列、UART驱动
+ * @note    初始化电源GPIO、RingBuffer、发送队列、协议解析层
+ *          UART和心跳在收到 SYS_ACTIVE 消息后启动
  *********************************************************************/
 static void my_dvr_task_init(void)
 {
-    int ret;
-
+    /* 初始化RingBuffer */
     my_rb_init(&s_ringbuf, s_ring_buf, D_UART_RING_BUF_SIZE);
+
+    /* 初始化发送队列 */
     my_tq_init(&s_tx_queue, 32);
 
-    ret = drv_uart_init(&uart_cfg);
-    if (ret != 0)
-    {
-        MY_LOG_E("Failed to init UART");
-    }
+    /* 初始化协议解析层 */
+    my_dvr_parse_init();
+
+    /* 初始化心跳定时器（未启动，等待电源开启） */
+    my_dvr_heartbeat_init();
+
+    /* 初始化DVR电源控制GPIO（默认关闭） */
+    drv_gpio_init(&s_dvr_power_gpio_cfg);
 
     TASK_STATE_DVR = TASK_STATE_ACTIVE;
 }
@@ -295,6 +363,10 @@ static void my_dvr_task_entry(void *pvParameters)
     (void)pvParameters;
 
     my_dvr_task_init();
+
+    my_task_delay_ms(100);   /* 等待稳定 */
+
+    my_dvr_power_on();       /* 上电默认开启DVR电源 */
 
     MY_LOG_I("NT98xx task started");
 
@@ -323,7 +395,7 @@ int my_dvr_send(const uint8_t *data, uint16_t len)
 {
     int ret;
 
-    if (data == NULL || len == 0)
+    if (data == NULL || len == 0 || TASK_STATE_DVR != TASK_STATE_ACTIVE)
     {
         return -1;
     }

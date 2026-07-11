@@ -83,8 +83,8 @@ typedef enum
     MY_MSG_ID_DVR_UART_RX_RDY,            /**< DVR UART接收完成 */
     MY_MSG_ID_DVR_PARSE_TIMEOUT,          /**< DVR 协议解析超时（2秒未完成） */
     MY_MSG_ID_DVR_SEND_HEARTBEAT,         /**< 向DVR发送心跳包（1秒） */
-    MY_MSG_ID_DVR_HEARTBEAT_RCV,          /**< 接收DVR心跳包 */
-    MY_MSG_ID_DVR_WAIT_HEARTBEAT_TOUT,    /**< 接收DVR心跳包超时（1秒未完成） */
+    MY_MSG_ID_DVR_WAIT_HEARTBEAT_TOUT,    /**< 接收DVR心跳包超时（90秒未收到） */
+    MY_MSG_ID_DVR_HEARTBEAT_RESTART,      /**< 心跳异常，请求重启DVR模块 */
 
     /* AMS/GNSS/CAN等模块消息按需扩展 */
 
@@ -113,7 +113,7 @@ typedef struct my_msg
 #define MY_TIMER_ID_ONE_MINUTE            MY_TIMER_ID_SLOT_1   /**< 1分钟定时器（核心） */
 #define MY_TIMER_ID_DVR_PARSE_TIMEOUT     MY_TIMER_ID_SLOT_2   /**< DVR协议解析超时（2秒） */
 #define MY_TIMER_ID_DVR_SEND_HEARTBEAT    MY_TIMER_ID_SLOT_3   /**< DVR发送心跳包（1秒） */
-#define MY_TIMER_ID_DVR_WAIT_HEARTBEAT    MY_TIMER_ID_SLOT_4   /**< DVR接收心跳包（1秒） */
+#define MY_TIMER_ID_DVR_WAIT_HEARTBEAT    MY_TIMER_ID_SLOT_4   /**< DVR心跳超时检测（90秒） */
 
 /*********************************************************************
  * 公共数据结构定义（预留扩展）
@@ -193,6 +193,7 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
 #include "my_version.h"
 #include "my_rb.h"
 #include "my_tq.h"
+#include "my_tool.h"
 #include "param_manager.h"
 
 /*********************************************************************
@@ -213,6 +214,9 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
 #include "my_rtt_shell.h"
 #include "my_ctrl.h"
 #include "my_dvr.h"
+#include "my_dvr_parse.h"
+#include "my_dvr_cmd.h"
+#include "my_dvr_heartbeat.h"
 #include "my_gsensor.h"
 #include "my_gnss.h"
 #include "my_can.h"
