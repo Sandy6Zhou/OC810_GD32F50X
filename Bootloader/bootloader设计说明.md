@@ -520,6 +520,8 @@ void my_bl_delay_ms(uint32_t ms);
 
 ## 8. Keil 工程配置
 
+> **提示**：项目根目录下的 `OC810 MDK-workspace.uvmpw` 可同时管理 Bootloader 和 APP 工程，推荐使用 Workspace 打开。
+
 ### 8.1 预处理宏
 
 ```

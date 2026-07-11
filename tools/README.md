@@ -160,7 +160,7 @@ OTA 测试需要模拟从旧版本 (v1) 升级到新版本 (v2) 的场景，需�
 > **注意**：Bootloader.bin 直接使用 `firmware/Bootloader.bin`（编译 Bootloader 时自动生成），**无需复制到 ota_test 目录**。
 
 如果还没有编译 Bootloader：
-1. 在 Keil 中打开 `Bootloader/project/Bootloader.uvprojx`
+1. 打开 Workspace `OC810 MDK-workspace.uvmpw`（推荐）或单独打开 `Bootloader/project/Bootloader.uvprojx`
 2. 编译 Bootloader 工程
 3. 固件自动输出到 `firmware/Bootloader.bin`
 

@@ -55,7 +55,7 @@ Third_Party/littlefs/
 #include <stdbool.h>
 #include <string.h>
 #include "my_log.h"          // 你的日志系统
-#include "my_safe_memory.h"  // FreeRTOS内存管理封装
+#include "my_mem.h"          // FreeRTOS内存管理封装
 #include "param_flash.h"     // FLASH驱动接口
 
 /*******************************************************************************
@@ -539,31 +539,24 @@ OC810_GD32F50X/
 ├── project/OC810/
 │   ├── code/
 │   │   ├── fs/                      # 文件系统移植层（我们编写的适配代码）
-│   │   │   ├── lfs_config.h         #   平台适配配置（唯一配置入口）
-│   │   │   ├── lfs_port.c           #   Block Device 回调 + 初始化/挂载/卸载
-│   │   │   ├── param_flash.h        #   全量FLASH分区定义 + 驱动接口
-│   │   │   ├── param_flash.c        #   FLASH底层驱动（FMC操作，支持全分区）
-│   │   │   ├── param_config.h       #   参数 ID 分配与存储格式配置
-│   │   │   ├── param_manager.h      #   参数管理系统 API
-│   │   │   └── param_manager.c      #   参数管理系统实现
+│   │   │   ├── lfs_config.h         # 平台适配配置（唯一配置入口）
+│   │   │   ├── lfs_port.c           # Block Device 回调 + 初始化/挂载/卸载
+│   │   │   ├── param_flash.h        # 全量FLASH分区定义 + 驱动接口
+│   │   │   ├── param_flash.c        # FLASH底层驱动（FMC操作，支持全分区）
+│   │   │   ├── param_config.h       # 参数 ID 分配与存储格式配置
+│   │   │   ├── param_manager.h      # 参数管理系统 API
+│   │   │   └── param_manager.c      # 参数管理系统实现
 │   │   │
 │   │   ├── log/                     # 日志系统（被 lfs_config.h 引用）
-│   │   │   ├── my_log.h             #   统一日志接口
-│   │   │   ├── my_log.c             #   日志核心实现
-│   │   │   ├── my_log_config.h      #   日志通道配置
-│   │   │   ├── rtt_logger.h/c       #   RTT 日志通道
-│   │   │   └── uart_logger.h/c      #   UART 日志通道
+│   │   │   ├── my_log.h             # 统一日志接口
+│   │   │   ├── my_log.c             # 日志核心实现
+│   │   │   ├── my_log_config.h      # 日志通道配置
+│   │   │   ├── rtt_logger.h/c       # RTT 日志通道
+│   │   │   └── uart_logger.h/c      # UART 日志通道
 │   │   │
-│   │   ├── utility/                 # 通用工具模块（被 lfs_config.h 引用）
-│   │   │   ├── my_safe_memory.h     #   内存管理接口
-│   │   │   └── my_safe_memory.c     #   基于 FreeRTOS 堆的安全封装
-│   │   │
-│   │   └── test/                    # 测试用例
-│   │       ├── main_littlefs_test.c       # LittleFS 基础层测试（46项）
-│   │       ├── main_param_manager_test.c  # 参数管理功能测试（50项）
-│   │       ├── main_param_powerloss_test.c # 掉电安全测试（17项）
-│   │       ├── main_param_ram_test.c      # RAM评估测试（10项）
-│   │       └── main_param_stress_test.c   # 压力恢复测试（21项）
+│   │   └── utility/                 # 通用工具模块（被 lfs_config.h 引用）
+│   │       ├── my_mem.h             # 内存管理接口
+│   │       └── my_mem.c             # 基于 FreeRTOS 堆的安全封装
 │   │
 │   └── MDK-ARM/
 │       └── OC810_GD32F505V.uvprojx  # Keil 工程文件
@@ -582,7 +575,7 @@ OC810_GD32F50X/
 | `param_config.h` | 配置层 | 参数 ID 分配策略、存储格式定义 |
 | `param_manager.h/c` | 应用层 | 基于 LittleFS 的参数管理系统 API（上层业务调用） |
 | `my_log.h/c` | 基础设施 | 统一日志输出（RTT/UART 双通道） |
-| `my_safe_memory.h/c` | 基础设施 | FreeRTOS 堆管理的安全封装（分配失败日志+NULL保护） |
+| `my_mem.h/c` | 基础设施 | FreeRTOS 堆管理的安全封装（分配失败日志+NULL保护） |
 
 ### 8.3 依赖关系
 
@@ -598,7 +591,7 @@ lfs_port.c           ← Block Device 回调 + 挂载管理
    ├── lfs_config.h  ← 平台配置（日志/断言/内存/参数）
    │     │
    │     ├── my_log.h           ← 日志系统
-   │     └── my_safe_memory.h   ← 内存管理
+   │     └── my_mem.h   ← 内存管理
    │
    ├── param_flash.c ← FLASH 底层驱动（FMC操作）
    │
