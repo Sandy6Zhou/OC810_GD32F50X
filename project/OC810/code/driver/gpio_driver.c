@@ -182,13 +182,16 @@ int32_t drv_gpio_deinit(drv_gpio_port_e port, drv_gpio_pin_e pin)
     pin_mask = pin;
     while (pin_mask != 0)
     {
-        pin_bit = __CLZ(pin_mask);
-        exti_line = _drv_gpio_pin_to_exti_line(1U << (15 - pin_bit));
+        /* __CLZ 计算前导零数量，pin_bit = 31 - 前导零数 = 最高位位置 */
+        uint32_t highest_bit = 31U - __CLZ(pin_mask);
+        uint32_t single_pin = (1U << highest_bit);
+
+        exti_line = _drv_gpio_pin_to_exti_line(single_pin);
         if (exti_line < DRV_MAX_EXTI_LINE_COUNT && s_exti_table[exti_line - EXTI_0].is_exti)
         {
-            drv_gpio_exti_disable(port, 1U << (15 - pin_bit));
+            drv_gpio_exti_disable(port, single_pin);
         }
-        pin_mask &= ~(1U << (15 - pin_bit));  /* 清除已处理的位 */
+        pin_mask &= ~single_pin;  /* 清除已处理的位 */
     }
 
     /* 恢复为默认输入模式（支持多引脚） */
@@ -288,7 +291,7 @@ int32_t drv_gpio_exti_configure(drv_gpio_port_e port, drv_gpio_pin_e pin,
     port_source = s_gpio_port_source[port];
 
     /* 连接GPIO到EXTI */
-    gpio_exti_source_select(port_source, (uint8_t)(__CLZ(pin)));
+    gpio_exti_source_select(port_source, (uint8_t)(31U - __CLZ(pin)));
 
     /* 配置EXTI中断模式和触发方式 */
     exti_init(exti_line, (exti_mode_enum)mode, (exti_trig_type_enum)trigger);
@@ -492,7 +495,7 @@ static uint32_t _drv_gpio_pin_to_exti_line(uint32_t pin)
  *********************************************************************/
 static IRQn_Type gpio_pin_to_irqn(uint32_t pin)
 {
-    uint32_t i = 15U - __CLZ(pin);
+    uint32_t i = 31U - __CLZ(pin);
 
     if (i <= 4U)
     {

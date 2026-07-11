@@ -83,4 +83,11 @@ void DMA1_Channel2_IRQHandler(void);
 void DMA1_Channel3_IRQHandler(void);
 void DMA1_Channel4_IRQHandler(void);
 
+/* UART interrupt handlers */
+void USART0_IRQHandler(void);
+void USART1_IRQHandler(void);
+void USART2_IRQHandler(void);
+void UART3_IRQHandler(void);
+void UART4_IRQHandler(void);
+
 #endif /* GD32F50X_IT_H */

@@ -38,6 +38,7 @@ OF SUCH DAMAGE.
 #include "my_log.h"
 #include "timer_driver.h"
 #include "dma_driver.h"
+#include "uart_driver.h"
 
 #define SRAM_ECC_ERROR_HANDLE(s)    do{}while(1)
 
@@ -592,4 +593,58 @@ void DMA1_Channel4_IRQHandler(void)
         dma_interrupt_flag_clear(DMA1, DMA_CH4, DMA_INT_FLAG_GIF);
         drv_dma_run_callback(DRV_DMA1_CH4, DRV_DMA_INT_ERR);
     }
+}
+
+/*********************************************************************
+ * UART 中断服务函数
+ *
+ * 设计说明：
+ *   1. 每个 UART 端口独立实现 ISR，调用 drv_uart_irq_handler 统一处理
+ *   2. 遵循 GD32 官方示例规范，使用官方 IRQ Handler 名称
+ *   3. 中断处理逻辑在驱动层实现，ISR 仅负责转发
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief   USART0 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void USART0_IRQHandler(void)
+{
+    drv_uart_irq_handler(DRV_UART_PORT_USART0);
+}
+
+/*********************************************************************
+ * @brief   USART1 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void USART1_IRQHandler(void)
+{
+    drv_uart_irq_handler(DRV_UART_PORT_USART1);
+}
+
+/*********************************************************************
+ * @brief   USART2 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void USART2_IRQHandler(void)
+{
+    drv_uart_irq_handler(DRV_UART_PORT_USART2);
+}
+
+/*********************************************************************
+ * @brief   UART3 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void UART3_IRQHandler(void)
+{
+    drv_uart_irq_handler(DRV_UART_PORT_UART3);
+}
+
+/*********************************************************************
+ * @brief   UART4 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void UART4_IRQHandler(void)
+{
+    drv_uart_irq_handler(DRV_UART_PORT_UART4);
 }
