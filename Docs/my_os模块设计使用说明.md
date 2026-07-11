@@ -142,43 +142,78 @@ typedef SemaphoreHandle_t my_sem_t;            // 信号量句柄
 
 ### 3.4 消息相关类型
 
-消息相关类型已迁移到 `my_comm.h` 统一管理：
+消息相关类型采用**框架层前向声明 + 应用层完整定义**的分层设计：
 
+**框架层（my_os.h）** - 前向声明：
+```c
+/* 消息结构体前向声明（完整定义在 my_comm.h） */
+struct my_msg;
+```
+
+**应用层（my_comm.h）** - 完整定义：
 ```c
 typedef QueueHandle_t my_msg_queue_t;           // 消息队列句柄
 
 typedef enum {
-    MY_MSG_ID_BASE = 0,                         // 消息ID基值
-    MY_MSG_ID_TEST,                             // 测试消息
-    MY_MSG_ID_ISR_TEST,                         // 中断测试消息
-    MY_MSG_ID_ADC_DATA_READY,                   // ADC数据就绪
-    /* ... 按需扩展 ... */
+    MY_MSG_ID_BASE = 0,                         // 消息ID基值（系统级）
+    MY_MSG_ID_SYS_ACTIVE,                       // 系统激活
+    MY_MSG_ID_SYS_SLEEP,                        // 进入休眠
+    MY_MSG_ID_SYS_SHUTDOWN,                     // 即将关机
+    MY_MSG_ID_SYS_STATUS_REQ,                   // 系统状态请求
+    MY_MSG_ID_ONE_MINUTE,                       // 1分钟定时器消息
+    /* ... 模块消息按需扩展 ... */
     MY_MSG_ID_MAX                               // 消息ID最大值
 } my_msg_id_e;
 
-typedef struct {
+/**
+ * @brief 消息结构体定义（与 my_os.h 前向声明 struct my_msg 对应）
+ */
+typedef struct my_msg
+{
     my_msg_id_e id;                              // 消息ID
     void        *data;                           // 消息数据指针
     uint32_t    len;                             // 消息数据长度（字节）
 } my_msg_t;
 ```
 
+**设计优势**：
+- ✅ 解耦循环依赖：`my_os.h` 使用 `struct my_msg` 指针，无需知道完整定义
+- ✅ 框架层稳定：`my_os.h` 无需包含 `my_comm.h`，保持 OS 抽象层独立性
+- ✅ 应用层灵活：消息结构体可在 `my_comm.h` 中按需扩展
+
 ### 3.5 定时器相关类型
 
-定时器ID已迁移到 `my_comm.h` 统一管理：
+定时器采用**框架层槽位 + 应用层映射**的分层设计：
 
+**框架层（my_os.h）** - 提供通用槽位定义：
 ```c
 typedef enum {
-    MY_TIMER_ID_ONE_MINUTE = 0,                 // 1分钟定时器（核心定时器）
-    MY_TIMER_ID_TEST,                           // 测试定时器
-    MY_TIMER_ID_ISR_TEST,                       // 中断安全API测试定时器
-    /* ... 按需扩展 ... */
-    MY_TIMER_ID_MAX                             // 定时器ID最大值
+    MY_TIMER_ID_SLOT_0 = 0,    // 槽位0
+    MY_TIMER_ID_SLOT_1,        // 槽位1
+    // ... 最多50个槽位 ...
+    MY_TIMER_ID_SLOT_49,       // 槽位49
+    MY_TIMER_ID_SLOT_MAX       // 槽位总数（50）
 } my_timer_id_e;
+```
 
+**应用层（my_comm.h）** - 映射业务名称：
+```c
+#define MY_TIMER_ID_ONE_MINUTE   MY_TIMER_ID_SLOT_0   /**< 1分钟定时器（核心） */
+#define MY_TIMER_ID_TEST         MY_TIMER_ID_SLOT_1   /**< 测试定时器 */
+#define MY_TIMER_ID_ISR_TEST     MY_TIMER_ID_SLOT_2   /**< 中断安全API测试 */
+/* 新增定时器请依次映射 SLOT_3 ~ SLOT_49 */
+```
+
+**其他类型定义**：
+```c
 typedef void* my_timer_handle_t;  // 定时器句柄（透明指针）
 typedef void (*my_timer_callback_t)(my_timer_handle_t timer_handle);  // 定时器回调
 ```
+
+**设计优势**：
+- ✅ 框架层稳定：`my_os.h` 几乎不修改，保持 OS 抽象层独立性
+- ✅ 应用层灵活：新增定时器只需在 `my_comm.h` 中映射槽位
+- ✅ 溢出自动检查：超过 `MY_TIMER_ID_SLOT_49` 时编译自动报错（枚举值不存在）
 
 ### 3.6 事件组类型
 
@@ -1021,17 +1056,23 @@ if (ret != 0) {
 
 ### 8.2 定时器数量
 
-在 `my_comm.h` 的 `my_timer_id_e` 中定义：
+定时器采用**框架层槽位 + 应用层映射**的分层设计：
+
+**框架层（my_os.h）**：定义通用槽位（`MY_TIMER_ID_SLOT_0~49`），最多支持 50 个定时器
+
+**应用层（my_comm.h）**：将槽位映射为业务名称：
 
 ```c
-typedef enum {
-    MY_TIMER_ID_ONE_MINUTE = 0,
-    MY_TIMER_ID_HEARTBEAT,
-    MY_TIMER_ID_TIMEOUT,
-
-    MY_TIMER_ID_MAX  // 必须放在最后
-} my_timer_id_e;
+#define MY_TIMER_ID_ONE_MINUTE   MY_TIMER_ID_SLOT_0   /**< 1分钟定时器（核心） */
+#define MY_TIMER_ID_TEST         MY_TIMER_ID_SLOT_1   /**< 测试定时器 */
+#define MY_TIMER_ID_ISR_TEST     MY_TIMER_ID_SLOT_2   /**< 中断安全API测试 */
+/* 新增定时器请依次映射 SLOT_3 ~ SLOT_49 */
 ```
+
+**优势**：
+- 框架层稳定：`my_os.h` 几乎不修改，保持 OS 抽象层独立性
+- 应用层灵活：新增定时器只需在 `my_comm.h` 中映射槽位
+- 溢出自动检查：超过 `MY_TIMER_ID_SLOT_49` 时编译自动报错（枚举值不存在）
 
 ### 8.3 消息ID
 
@@ -1136,6 +1177,7 @@ void EXTI_IRQHandler(void)
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| V1.3 | 2026.06.08 | 定时器ID改为框架层槽位+应用层映射设计：my_os.h提供MY_TIMER_ID_SLOT_0~49通用槽位，my_comm.h映射业务名称；新增MY_TIMER_ID_SLOT_MAX表示槽位总数；超过SLOT_49时编译自动报错 |
 | V1.3 | 2026.06.05 | 新增事件组(Event Group)接口；新增任务通知(Task Notification)接口；新增任务状态查询/栈水位/名称接口；新增内存管理接口；新增调度器挂起/恢复；新增my_msg_queue_get_spaces/my_os_get_task_count/my_task_resume_from_isr/my_ticks_to_ms；消息ID/定时器ID迁移到my_comm.h；my_msg_t字段简化为id/data/len |
 | V1.2 | 2026.05.07 | 封装FreeRTOS基础类型为my_前缀类型（my_base_type_t/my_ubase_type_t/my_tick_type_t）；更新临界区宏命名 |
 | V1.1 | 2026.05.07 | 添加my_sem_take_from_isr中断安全API；完善定时器中断安全API；修正回调示例 |
