@@ -30,12 +30,13 @@ typedef void (*app_func)(void);
  * @param   None
  * @return  None
  * @note    Cortex-M Bootloader 跳转最佳实践：
- *          1. 跳转顺序：读取APP入口地址 → 设置VTOR → __DSB() → 设置MSP → 跳转
- *          2. 必须先读取APP入口地址再设置VTOR，确保在Bootloader向量表上下文中读取
- *          3. VTOR设置后必须插入__DSB()内存屏障，确保向量表切换完成后再操作
- *          4. 禁止调用__disable_irq()，Cortex-M33上PRIMASK会导致栈/向量切换时序异常
- *          5. 跳转前需关闭SysTick、停用Bootloader使用的外设（UART/FLASH等）、清除NVIC所有中断使能和挂起状态
- *          6. 跳转前必须验证APP栈指针是否在合法SRAM范围内
+ *          1. 跳转顺序：关闭外设/中断 → 设置MSP → 读取入口地址 → 跳转
+ *          2. __set_MSP() 是栈切换分界线，之后使用的局部变量必须在之后定义/赋值：
+ *             __set_MSP() 前的局部变量存储在 Bootloader 栈上，切换后若编译器 spill
+ *             寄存器到栈再 load 回来，会从 APP 栈读到垃圾值 → INVSTATE HardFault
+ *          3. 禁止调用__disable_irq()，Cortex-M33上PRIMASK会导致栈/向量切换时序异常
+ *          4. 跳转前需关闭SysTick、停用Bootloader使用的外设（UART/FLASH等）、清除NVIC所有中断使能和挂起状态
+ *          5. 跳转前必须验证APP栈指针是否在合法SRAM范围内
  *********************************************************************/
 void jump_to_execute(void)
 {
@@ -61,12 +62,19 @@ void jump_to_execute(void)
             NVIC->ICPR[i] = 0xFFFFFFFFU;
         }
 
-        /* 读取APP入口地址（在Bootloader向量表上下文中） */
+        /* @note 关键顺序：必须先切栈，再操作局部变量 ——————————————————————
+         * __set_MSP() 之后所有栈操作走 APP 栈。若先读取入口地址再切栈，
+         * 编译器可能将 app_address spill 到 Bootloader 栈后又从 APP 栈
+         * load 回来 → 读到 0xFF... → INVSTATE HardFault。
+         * 当前顺序：切栈在先，app_address/application 赋值在后，读写同栈。
+         */
+
+        /* 初始化APP堆栈指针 — 此行是栈分界线，勿上移 */
+        __set_MSP(*(__IO uint32_t*) BL_FLASH_APP_BASE);
+
+        /* 读取APP入口地址（必须在 __set_MSP 之后，保证局部变量在 APP 栈上） */
         app_address = *(__IO uint32_t*) (BL_FLASH_APP_BASE + 4U);
         application = (app_func) app_address;
-
-        /* 初始化APP堆栈指针 */
-        __set_MSP(*(__IO uint32_t*) BL_FLASH_APP_BASE);
 
         /* 跳转到APP */
         application();
@@ -88,7 +96,6 @@ int main(void)
     app_func application;
     uint32_t app_address;
     my_bl_bootconf_t bconf;
-    // uint32_t sram_sect = REG32(BL_FLASH_APP_BASE);
 
     /* 1. 硬件初始化 */
     SystemCoreClockUpdate();
@@ -153,7 +160,6 @@ int main(void)
             bconf.ota_flag = BL_OTA_FLAG_NONE;
             bconf.last_boot_status = BL_BOOT_STATUS_UPGRADED;
             my_bl_bootconf_write(&bconf);
-            // my_bl_system_reset();
         }
         else
         {
@@ -172,8 +178,16 @@ int main(void)
     /* 4. 跳转到APP */
     jump_to_execute();
 
-    /* 5. 应用程序永远不会返回 */
-    while (1U) {}
+    /* 5. 跳转失败（APP 无效或已返回到此），禁止中断后安全死循环，理论上不会到达此行代码 */
+    SysTick->CTRL = 0U;
+    for (int i = 0; i < 8; i++)
+    {
+        NVIC->ICER[i] = 0xFFFFFFFFU;
+        NVIC->ICPR[i] = 0xFFFFFFFFU;
+    }
 
-    return 0;
+    while (1U)
+    {
+        __WFI();
+    }
 }

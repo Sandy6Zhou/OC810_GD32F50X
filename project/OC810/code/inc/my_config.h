@@ -28,12 +28,13 @@
 #define MY_MAIN_TASK_PRIO       (tskIDLE_PRIORITY + 4)     /**< 主任务协调 */
 #define MY_CTRL_TASK_PRIO       (tskIDLE_PRIORITY + 4)     /**< 控制模块 */
 #define MY_SHELL_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RTT Shell调试 */
-#define MY_DVR_TASK_PRIO     (tskIDLE_PRIORITY + 3)     /**< 视频芯片 */
+#define MY_DVR_TASK_PRIO        (tskIDLE_PRIORITY + 3)     /**< 视频芯片 */
 #define MY_RS485_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RS485串口 */
 #define MY_RS232_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RS232串口 */
 #define MY_GNSS_TASK_PRIO       (tskIDLE_PRIORITY + 2)     /**< GNSS定位 */
 #define MY_GSENSOR_TASK_PRIO    (tskIDLE_PRIORITY + 2)     /**< G传感器 */
 #define MY_AMS_TASK_PRIO        (tskIDLE_PRIORITY + 2)     /**< 自动消息 */
+#define MY_RTC_TASK_PRIO        (tskIDLE_PRIORITY + 2)     /**< 实时钟 */
 
 /*********************************************************************
  * 任务栈大小配置（单位：字，1字=4字节）
@@ -61,6 +62,12 @@
  * @note DVR视频芯片控制，逻辑中等
  */
 #define MY_DVR_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE * 4)
+
+/**
+ * @brief RTC模块任务栈大小
+ * @note RTC处理实时时钟，逻辑简单
+ */
+#define MY_RTC_TASK_STACK_SIZE        (configMINIMAL_STACK_SIZE * 2)
 
 /**
  * @brief GSENSOR模块任务栈大小
@@ -122,6 +129,11 @@
 #define MY_GSENSOR_MSG_QUEUE_DEPTH      (8)
 
 /**
+ * @brief RTC模块消息队列深度
+ */
+#define MY_RTC_MSG_QUEUE_DEPTH         (8)
+
+/**
  * @brief GNSS模块消息队列深度
  */
 #define MY_GNSS_MSG_QUEUE_DEPTH         (8)
@@ -179,6 +191,7 @@
     MY_CAN_TASK_STACK_SIZE + \
     MY_RS485_TASK_STACK_SIZE + \
     MY_RS232_TASK_STACK_SIZE + \
+    MY_RTC_TASK_STACK_SIZE + \
     MY_AMS_TASK_STACK_SIZE \
 )
 
@@ -201,6 +214,7 @@
      MY_CAN_MSG_QUEUE_DEPTH + \
      MY_RS485_MSG_QUEUE_DEPTH + \
      MY_RS232_MSG_QUEUE_DEPTH + \
+     MY_RTC_MSG_QUEUE_DEPTH + \
      MY_AMS_MSG_QUEUE_DEPTH + \
      MY_SHELL_MSG_QUEUE_DEPTH) * 12U \
 )
@@ -222,7 +236,7 @@ _Static_assert(
  * @brief 编译期校验：任务数量不超过configMAX_PRIORITIES
  * @note 确保每个任务都能分配到独立优先级
  */
-#define MY_TASK_COUNT   (10)  /* AMS/CAN/CTRL/GNSS/GSENSOR/MAIN/DVR/RS232/RS485/SHELL */
+#define MY_TASK_COUNT   (11)  /* AMS/CAN/CTRL/GNSS/GSENSOR/MAIN/DVR/RS232/RS485/SHELL/RTC */
 
 /* 编译期校验：最高优先级不超过configMAX_PRIORITIES */
 _Static_assert(

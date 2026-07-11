@@ -9,11 +9,13 @@
 
   <project>
     <PathAndName>.\Bootloader\project\Bootloader.uvprojx</PathAndName>
+    <NodeIsExpanded>1</NodeIsExpanded>
   </project>
 
   <project>
     <PathAndName>.\project\OC810\MDK-ARM\OC810_GD32F505V.uvprojx</PathAndName>
     <NodeIsActive>1</NodeIsActive>
+    <NodeIsExpanded>1</NodeIsExpanded>
   </project>
 
 </ProjectWorkspace>

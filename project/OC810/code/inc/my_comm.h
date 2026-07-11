@@ -21,7 +21,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <errno.h>
+
+/* ARMCLANG V6 + newlib-nano 中 localtime_r 不受 _POSIX_C_SOURCE 控制，需显式声明 */
+extern struct tm *localtime_r(const time_t *__restrict, struct tm *__restrict);
 
 #include "my_os.h"
 #include "my_config.h"
@@ -45,13 +49,14 @@ typedef enum
     TASK_MOD_MAIN = 0,    /**< 主模块 */
     TASK_MOD_RTT_SHELL,   /**< RTT Shell模块 */
     TASK_MOD_CTRL,        /**< 控制模块 */
-    TASK_MOD_DVR,      /**< DVR模块 */
+    TASK_MOD_DVR,         /**< DVR模块 */
     TASK_MOD_GSENSOR,     /**< G传感器模块 */
     TASK_MOD_GNSS,        /**< GNSS模块 */
     TASK_MOD_CAN,         /**< CAN模块 */
     TASK_MOD_RS485,       /**< RS485模块 */
     TASK_MOD_RS232,       /**< RS232模块 */
     TASK_MOD_AMS,         /**< AMS模块 */
+    TASK_MOD_RTC,         /**< RTC模块 */
 
     TASK_MOD_MAX          /**< 模块数量最大值 */
 } task_module_e;
@@ -85,6 +90,13 @@ typedef enum
     MY_MSG_ID_DVR_SEND_HEARTBEAT,         /**< 向DVR发送心跳包（1秒） */
     MY_MSG_ID_DVR_WAIT_HEARTBEAT_TOUT,    /**< 接收DVR心跳包超时（90秒未收到） */
     MY_MSG_ID_DVR_HEARTBEAT_RESTART,      /**< 心跳异常，请求重启DVR模块 */
+
+    /* MY_RTC模块消息 */
+    MY_MSG_ID_RTC_SECOND_TICK,            /**< RTC秒中断事件 */
+    MY_MSG_ID_RTC_ALARM_EVENT,            /**< RTC闹钟中断事件 */
+    MY_MSG_ID_RTC_OVERFLOW_EVENT,         /**< RTC溢出中断事件 */
+    MY_MSG_ID_RTC_SET_TIME,               /**< RTC设置时间（data携带timestamp） */
+    MY_MSG_ID_RTC_SET_CALENDAR,           /**< RTC设置日历（data携带struct tm指针，需MY_FREE） */
 
     /* AMS/GNSS/CAN等模块消息按需扩展 */
 
@@ -170,6 +182,11 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
 #define MSG_QUEUE_CAN            g_msg_queue[TASK_MOD_CAN]
 #define TASK_STATE_CAN           g_task_state[TASK_MOD_CAN]
 
+/* 定义RTC任务的句柄和消息队列 */
+#define TASK_HANDLE_RTC          g_task_handle[TASK_MOD_RTC]
+#define MSG_QUEUE_RTC            g_msg_queue[TASK_MOD_RTC]
+#define TASK_STATE_RTC           g_task_state[TASK_MOD_RTC]
+
 /* 定义RS485任务的句柄和消息队列 */
 #define TASK_HANDLE_RS485        g_task_handle[TASK_MOD_RS485]
 #define MSG_QUEUE_RS485          g_msg_queue[TASK_MOD_RS485]
@@ -206,6 +223,7 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
 #include "i2c_driver.h"
 #include "timer_driver.h"
 #include "uart_driver.h"
+#include "rtc_driver.h"
 
 /*********************************************************************
  * 应用模块头文件（包含 guard 防止循环依赖）
@@ -223,5 +241,6 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
 #include "my_rs485.h"
 #include "my_rs232.h"
 #include "my_ams.h"
+#include "my_rtc.h"
 
 #endif /* __MY_COMM_H__ */

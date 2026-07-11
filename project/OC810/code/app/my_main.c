@@ -105,6 +105,12 @@ static int sub_tasks_init(void)
         fail_count++;
     }
 
+    /* 10. RTC实时时钟 */
+    if (my_rtc_init() != 0)
+    {
+        MY_LOG_E("RTC init failed!");
+        fail_count++;
+    }
 
     if (fail_count > 0)
     {

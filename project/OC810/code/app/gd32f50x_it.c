@@ -42,6 +42,7 @@ OF SUCH DAMAGE.
 #include "adc_driver.h"
 #include "gpio_driver.h"
 #include "can_driver.h"
+#include "rtc_driver.h"
 
 #define SRAM_ECC_ERROR_HANDLE(s)    do{}while(1)
 
@@ -1121,4 +1122,13 @@ void CAN1_EWMC_IRQHandler(void)
         /* 清除错误标志 */
         can_flag_clear(CAN1, CAN_FLAG_BOERR | CAN_FLAG_PERR | CAN_FLAG_WERR);
     }
+}
+
+/*********************************************************************
+ * @brief   RTC 中断服务函数
+ * @note    秒中断、闹钟中断等统一由 drv_rtc_irq_handler 分发
+ *********************************************************************/
+void RTC_IRQHandler(void)
+{
+    drv_rtc_irq_handler();
 }

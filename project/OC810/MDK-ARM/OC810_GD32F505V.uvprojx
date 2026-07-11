@@ -458,6 +458,11 @@
               <FileType>1</FileType>
               <FilePath>..\code\app\my_ams.c</FilePath>
             </File>
+            <File>
+              <FileName>my_rtc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_rtc.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -767,6 +772,11 @@
               <FileName>can_driver.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\driver\can_driver.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtc_driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\driver\rtc_driver.c</FilePath>
             </File>
           </Files>
         </Group>
