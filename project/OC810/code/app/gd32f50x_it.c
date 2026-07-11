@@ -41,6 +41,7 @@ OF SUCH DAMAGE.
 #include "uart_driver.h"
 #include "adc_driver.h"
 #include "gpio_driver.h"
+#include "can_driver.h"
 
 #define SRAM_ECC_ERROR_HANDLE(s)    do{}while(1)
 
@@ -827,5 +828,237 @@ void EXTI10_15_IRQHandler(void)
     {
         exti_interrupt_flag_clear(EXTI_15);
         drv_gpio_exti_handler(EXTI_15);
+    }
+}
+
+/*********************************************************************
+ * CAN 中断服务函数
+ *
+ * 设计说明：
+ *   1. CAN0/CAN1各有4个中断：TX/RX0/RX1/EWMC
+ *   2. RX中断检查FIFO非空中断标志，读取消息后执行回调
+ *   3. TX中断检查邮箱空中断标志，执行发送完成回调
+ *   4. EWMC中断处理错误和总线关闭事件
+ *   5. 保持ISR快速执行，复杂处理交给回调函数
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief   CAN0 RX0 中断服务函数
+ * @note    处理FIFO0接收消息
+ *********************************************************************/
+void CAN0_RX0_IRQHandler(void)
+{
+    drv_can_frame_t frame;
+
+    /* 检查FIFO0非空中断标志 */
+    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_RFNE0))
+    {
+        /* 读取消息 */
+        if (drv_can_receive(DRV_CAN_PORT_CAN0, &frame, 0) == DRV_CAN_ERR_OK)
+        {
+            /* 执行接收回调 */
+            extern int drv_can_register_rx_callback(drv_can_port_e port, void (*callback)(drv_can_port_e, drv_can_frame_t *, uint8_t));
+            if (s_can_ctrl[DRV_CAN_PORT_CAN0].rx_callback != NULL)
+            {
+                s_can_ctrl[DRV_CAN_PORT_CAN0].rx_callback(DRV_CAN_PORT_CAN0, &frame, 0);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @brief   CAN0 RX1 中断服务函数
+ * @note    处理FIFO1接收消息
+ *********************************************************************/
+void CAN0_RX1_IRQHandler(void)
+{
+    drv_can_frame_t frame;
+
+    /* 检查FIFO1非空中断标志 */
+    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_RFNE1))
+    {
+        /* 读取消息 */
+        if (drv_can_receive(DRV_CAN_PORT_CAN0, &frame, 1) == DRV_CAN_ERR_OK)
+        {
+            /* 执行接收回调 */
+            if (s_can_ctrl[DRV_CAN_PORT_CAN0].rx_callback != NULL)
+            {
+                s_can_ctrl[DRV_CAN_PORT_CAN0].rx_callback(DRV_CAN_PORT_CAN0, &frame, 1);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @brief   CAN0 TX 中断服务函数
+ * @note    处理发送邮箱空中断
+ *********************************************************************/
+void CAN0_TX_IRQHandler(void)
+{
+    uint8_t mailbox;
+
+    /* 检查3个发送邮箱 */
+    for (mailbox = 0; mailbox < 3; mailbox++)
+    {
+        if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_TME0 + mailbox))
+        {
+            /* 执行发送完成回调 */
+            if (s_can_ctrl[DRV_CAN_PORT_CAN0].tx_callback != NULL)
+            {
+                s_can_ctrl[DRV_CAN_PORT_CAN0].tx_callback(DRV_CAN_PORT_CAN0, mailbox);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @brief   CAN0 EWMC 中断服务函数
+ * @note    处理错误和警告事件
+ *********************************************************************/
+void CAN0_EWMC_IRQHandler(void)
+{
+    drv_can_err_type_e err_type = DRV_CAN_ERR_TYPE_NONE;
+
+    /* 检查错误中断标志 */
+    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_ERR))
+    {
+        /* 判断错误类型 */
+        if (SET == can_flag_get(CAN0, CAN_FLAG_BOERR))
+        {
+            /* 总线关闭错误 */
+            s_can_ctrl[DRV_CAN_PORT_CAN0].state = DRV_CAN_STATE_BUS_OFF;
+            err_type = DRV_CAN_ERR_TYPE_BIT;
+        }
+        else if (SET == can_flag_get(CAN0, CAN_FLAG_PERR))
+        {
+            err_type = DRV_CAN_ERR_TYPE_STUFF;
+        }
+        else if (SET == can_flag_get(CAN0, CAN_FLAG_FERR))
+        {
+            err_type = DRV_CAN_ERR_TYPE_FORM;
+        }
+        else if (SET == can_flag_get(CAN0, CAN_FLAG_NERR))
+        {
+            err_type = DRV_CAN_ERR_TYPE_BIT;
+        }
+
+        /* 执行错误回调 */
+        if (s_can_ctrl[DRV_CAN_PORT_CAN0].err_callback != NULL && err_type != DRV_CAN_ERR_TYPE_NONE)
+        {
+            s_can_ctrl[DRV_CAN_PORT_CAN0].err_callback(DRV_CAN_PORT_CAN0, err_type);
+        }
+
+        /* 清除错误标志 */
+        can_flag_clear(CAN0, CAN_FLAG_BOERR | CAN_FLAG_PERR | CAN_FLAG_FERR | CAN_FLAG_NERR);
+    }
+}
+
+/*********************************************************************
+ * @brief   CAN1 RX0 中断服务函数
+ * @note    处理FIFO0接收消息
+ *********************************************************************/
+void CAN1_RX0_IRQHandler(void)
+{
+    drv_can_frame_t frame;
+
+    /* 检查FIFO0非空中断标志 */
+    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_RFNE0))
+    {
+        /* 读取消息 */
+        if (drv_can_receive(DRV_CAN_PORT_CAN1, &frame, 0) == DRV_CAN_ERR_OK)
+        {
+            /* 执行接收回调 */
+            if (s_can_ctrl[DRV_CAN_PORT_CAN1].rx_callback != NULL)
+            {
+                s_can_ctrl[DRV_CAN_PORT_CAN1].rx_callback(DRV_CAN_PORT_CAN1, &frame, 0);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @brief   CAN1 RX1 中断服务函数
+ * @note    处理FIFO1接收消息
+ *********************************************************************/
+void CAN1_RX1_IRQHandler(void)
+{
+    drv_can_frame_t frame;
+
+    /* 检查FIFO1非空中断标志 */
+    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_RFNE1))
+    {
+        /* 读取消息 */
+        if (drv_can_receive(DRV_CAN_PORT_CAN1, &frame, 1) == DRV_CAN_ERR_OK)
+        {
+            /* 执行接收回调 */
+            if (s_can_ctrl[DRV_CAN_PORT_CAN1].rx_callback != NULL)
+            {
+                s_can_ctrl[DRV_CAN_PORT_CAN1].rx_callback(DRV_CAN_PORT_CAN1, &frame, 1);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @brief   CAN1 TX 中断服务函数
+ * @note    处理发送邮箱空中断
+ *********************************************************************/
+void CAN1_TX_IRQHandler(void)
+{
+    uint8_t mailbox;
+
+    /* 检查3个发送邮箱 */
+    for (mailbox = 0; mailbox < 3; mailbox++)
+    {
+        if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_TME0 + mailbox))
+        {
+            /* 执行发送完成回调 */
+            if (s_can_ctrl[DRV_CAN_PORT_CAN1].tx_callback != NULL)
+            {
+                s_can_ctrl[DRV_CAN_PORT_CAN1].tx_callback(DRV_CAN_PORT_CAN1, mailbox);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @brief   CAN1 EWMC 中断服务函数
+ * @note    处理错误和警告事件
+ *********************************************************************/
+void CAN1_EWMC_IRQHandler(void)
+{
+    drv_can_err_type_e err_type = DRV_CAN_ERR_TYPE_NONE;
+
+    /* 检查错误中断标志 */
+    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_ERR))
+    {
+        /* 判断错误类型 */
+        if (SET == can_flag_get(CAN1, CAN_FLAG_BOERR))
+        {
+            /* 总线关闭错误 */
+            s_can_ctrl[DRV_CAN_PORT_CAN1].state = DRV_CAN_STATE_BUS_OFF;
+            err_type = DRV_CAN_ERR_TYPE_BIT;
+        }
+        else if (SET == can_flag_get(CAN1, CAN_FLAG_PERR))
+        {
+            err_type = DRV_CAN_ERR_TYPE_STUFF;
+        }
+        else if (SET == can_flag_get(CAN1, CAN_FLAG_FERR))
+        {
+            err_type = DRV_CAN_ERR_TYPE_FORM;
+        }
+        else if (SET == can_flag_get(CAN1, CAN_FLAG_NERR))
+        {
+            err_type = DRV_CAN_ERR_TYPE_BIT;
+        }
+
+        /* 执行错误回调 */
+        if (s_can_ctrl[DRV_CAN_PORT_CAN1].err_callback != NULL && err_type != DRV_CAN_ERR_TYPE_NONE)
+        {
+            s_can_ctrl[DRV_CAN_PORT_CAN1].err_callback(DRV_CAN_PORT_CAN1, err_type);
+        }
+
+        /* 清除错误标志 */
+        can_flag_clear(CAN1, CAN_FLAG_BOERR | CAN_FLAG_PERR | CAN_FLAG_FERR | CAN_FLAG_NERR);
     }
 }

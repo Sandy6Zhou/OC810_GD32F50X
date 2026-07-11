@@ -683,6 +683,11 @@
               <FileType>1</FileType>
               <FilePath>..\code\driver\adc_driver.c</FilePath>
             </File>
+            <File>
+              <FileName>i2c_driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\driver\i2c_driver.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
