@@ -31,6 +31,9 @@
  *  TX队列节点数据会拷贝到此缓冲区，再由UART中断发送 */
 #define D_UART_TX_BUF_SIZE      (D_DVR_TX_ESCAPE_LARGE_BUF_SIZE)
 
+/** 发送队列深度（最多缓存的发送帧数量） */
+#define D_DVR_TX_QUEUE_DEPTH    (10U)
+
 /*********************************************************************
  * 内部数据结构定义
  *********************************************************************/
@@ -336,7 +339,7 @@ static void my_dvr_task_init(void)
     my_rb_init(&s_ringbuf, s_ring_buf, D_UART_RING_BUF_SIZE);
 
     /* 初始化发送队列 */
-    my_tq_init(&s_tx_queue, 32);
+    my_tq_init(&s_tx_queue, D_DVR_TX_QUEUE_DEPTH);
 
     /* 初始化协议解析层 */
     my_dvr_parse_init();
