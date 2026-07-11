@@ -177,7 +177,7 @@ uint16_t my_dvr_parse_build_response(uint16_t seq,
     }
 
     /* 2. 计算 CRC16-CCITT */
-    crc = my_tool_crc16(out_buf, body_len, D_CRC16_CCITT_POLY);
+    crc = my_tool_crc16_bitwise(out_buf, body_len, D_CRC16_CCITT_POLY);
 
     /* 3. 备份帧头（后续写 FLAG 会覆盖 out_buf[0]） */
     (void)memcpy(hdr_buf, out_buf, D_DVR_FRAME_HDR_LEN);
@@ -377,7 +377,7 @@ dvr_parse_status_e my_dvr_parse_frame(const uint8_t *buf,
                     }
 
                     /* CRC 校验（CRC范围：seq + cmd + payload） */
-                    calc_crc = my_tool_crc16(s_ctx.frame_buf.raw, s_ctx.unesc_len - 2, D_CRC16_CCITT_POLY);
+                    calc_crc = my_tool_crc16_bitwise(s_ctx.frame_buf.raw, s_ctx.unesc_len - 2, D_CRC16_CCITT_POLY);
                     recv_crc = my_tool_be16_to_u16(&s_ctx.frame_buf.raw[s_ctx.unesc_len - 2]);
                     if (calc_crc != recv_crc)
                     {

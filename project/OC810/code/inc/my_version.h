@@ -32,7 +32,7 @@
  *   01       - 当天构建序号（01~99）
  *********************************************************************/
 /** 软件版本全称字符串 */
-#define MY_SW_VERSION_STRING    "JM-OC810MCU-STD-V1.0.260608.01"
+#define MY_SW_VERSION_STRING    "JM-OC810MCU-STD-V1.0.260626.02"
 
 /** 编译日期（编译器内置宏） */
 #define MY_SW_BUILD_DATE        __DATE__

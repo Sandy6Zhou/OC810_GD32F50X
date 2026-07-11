@@ -102,7 +102,7 @@
  *   - 用途：量产版本，完整FLASH分区布局
  ******************************************************************************/
 
-#define PARAM_DEBUG_MODE        1               /**< 1=调试阶段，0=正式阶段 */
+#define PARAM_DEBUG_MODE        0               /**< 1=调试阶段，0=正式阶段 */
 
 #if PARAM_DEBUG_MODE
     /* 调试阶段：放在factory_storage(0x080FB000)之前208KB */
@@ -164,13 +164,13 @@
 #endif
 #define PARAM_PARTITION_MCU_SEC_SIZE    (376 * 1024UL)
 
-/* factory_storage: 工厂参数/IMEI/MAC（20KB） */
-#define PARAM_PARTITION_FACTORY_BASE    0x080FB000UL
-#define PARAM_PARTITION_FACTORY_SIZE    (12 * 1024UL)
-
-/* bootconf: 启动配置/OTA标志（4KB） */
-#define PARAM_PARTITION_BOOTCONF_BASE   0x080FE000UL
+/* bootconf: 启动配置/OTA标志（4KB，移到Factory前面） */
+#define PARAM_PARTITION_BOOTCONF_BASE   0x080FC000UL
 #define PARAM_PARTITION_BOOTCONF_SIZE   (4 * 1024UL)
+
+/* factory_storage: 工厂参数/IMEI/MAC（12KB，放在最后） */
+#define PARAM_PARTITION_FACTORY_BASE    0x080FD000UL
+#define PARAM_PARTITION_FACTORY_SIZE    (12 * 1024UL)
 
 /*******************************************************************************
  * 编译期分区合法性校验（_Static_assert: C11静态断言，编译时即报错）
