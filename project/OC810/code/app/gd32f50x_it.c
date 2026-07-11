@@ -53,15 +53,19 @@ OF SUCH DAMAGE.
 */
 void NMI_Handler(void)
 {
-    if(SET == syscfg_sram_ecc_flag_get(SYSCFG_SRAMECCSTAT_SRAMECCMEIF)) {
+    if (SET == syscfg_sram_ecc_flag_get(SYSCFG_SRAMECCSTAT_SRAMECCMEIF))
+    {
         SRAM_ECC_ERROR_HANDLE("SRAM non-correction event detected\r\n");
-    } else if(SET == syscfg_sram_ecc_flag_get(SYSCFG_SRAMECCSTAT_SRAMECCSEIF)) {
+    }
+    else if (SET == syscfg_sram_ecc_flag_get(SYSCFG_SRAMECCSTAT_SRAMECCSEIF))
+    {
         SRAM_ECC_ERROR_HANDLE("SRAM single bit correction event detected\r\n");
-    } else {
+    }
+    else
+    {
         /* if NMI exception occurs, go to infinite loop */
         /* HXTAL clock monitor NMI error or NMI pin error */
-        while(1) {
-        }
+        while(1) { }
     }
 }
 
@@ -73,14 +77,55 @@ void NMI_Handler(void)
 */
 void HardFault_Handler(void)
 {
-    /* 输出 HardFault 信息 */
-    my_log_init();
-    MY_LOG_E("[HARDFAULT] HardFault exception occurred!");
-    MY_LOG_E("[HARDFAULT] SCB->CFSR: 0x%08X", *(volatile uint32_t *)0xE000ED28);
+    /* 使用 CMSIS 标准 SCB 结构体访问故障寄存器（提高可移植性） */
+    uint32_t cfsr = SCB->CFSR;   /* Configurable Fault Status Register */
+    uint32_t hfsr = SCB->HFSR;   /* HardFault Status Register */
+    uint32_t mmfar = SCB->MMFAR; /* MemManage Fault Address Register */
+    uint32_t bfar = SCB->BFAR;   /* BusFault Address Register */
 
-    /* if Hard Fault exception occurs, go to infinite loop */
-    while (1){
-    }
+    /* 无锁日志初始化（跳过互斥锁创建，仅初始化底层输出通道） */
+    my_log_critical_init();
+
+    my_log_critical_print("===== HARDFAULT OCCURRED =====");
+    my_log_critical_print("CFSR: 0x%08X", cfsr);
+    my_log_critical_print("HFSR: 0x%08X", hfsr);
+    my_log_critical_print("MMFAR: 0x%08X", mmfar);
+    my_log_critical_print("BFAR: 0x%08X", bfar);
+
+    /* CFSR 详细解析 (MMFSR[7:0] + BFSR[15:8] + UFSR[31:16]) */
+    /* MMFSR (MemManage Fault Status Register) */
+    if (cfsr & SCB_CFSR_IACCVIOL_Msk)   my_log_critical_print("  -> IACCVIOL: Instruction access violation");
+    if (cfsr & SCB_CFSR_DACCVIOL_Msk)   my_log_critical_print("  -> DACCVIOL: Data access violation");
+    if (cfsr & SCB_CFSR_MUNSTKERR_Msk)  my_log_critical_print("  -> MUNSTKERR: MemManage fault on unstacking");
+    if (cfsr & SCB_CFSR_MSTKERR_Msk)    my_log_critical_print("  -> MSTKERR: MemManage fault on stacking");
+    if (cfsr & SCB_CFSR_MLSPERR_Msk)    my_log_critical_print("  -> MLSPERR: MemManage lazy save error");
+    if (cfsr & SCB_CFSR_MMARVALID_Msk)  my_log_critical_print("  -> MMARVALID: MMFAR address valid");
+
+    /* BFSR (BusFault Status Register) */
+    if (cfsr & SCB_CFSR_IBUSERR_Msk)     my_log_critical_print("  -> IBUSERR: Instruction bus error");
+    if (cfsr & SCB_CFSR_PRECISERR_Msk)   my_log_critical_print("  -> PRECISERR: Precise data bus error");
+    if (cfsr & SCB_CFSR_IMPRECISERR_Msk) my_log_critical_print("  -> IMPRECISERR: Imprecise data bus error");
+    if (cfsr & SCB_CFSR_UNSTKERR_Msk)    my_log_critical_print("  -> UNSTKERR: Bus fault on unstacking");
+    if (cfsr & SCB_CFSR_STKERR_Msk)      my_log_critical_print("  -> STKERR: Bus fault on stacking");
+    if (cfsr & SCB_CFSR_LSPERR_Msk)      my_log_critical_print("  -> LSPERR: Bus lazy save error");
+    if (cfsr & SCB_CFSR_BFARVALID_Msk)   my_log_critical_print("  -> BFARVALID: BFAR address valid");
+
+    /* UFSR (UsageFault Status Register) */
+    if (cfsr & SCB_CFSR_UNDEFINSTR_Msk)  my_log_critical_print("  -> UNDEFINSTR: Undefined instruction");
+    if (cfsr & SCB_CFSR_INVSTATE_Msk)    my_log_critical_print("  -> INVSTATE: Invalid state (Thumb/ARM)");
+    if (cfsr & SCB_CFSR_INVPC_Msk)       my_log_critical_print("  -> INVPC: Invalid PC load (EXC_RETURN)");
+    if (cfsr & SCB_CFSR_NOCP_Msk)        my_log_critical_print("  -> NOCP: No coprocessor");
+    if (cfsr & SCB_CFSR_STKOF_Msk)       my_log_critical_print("  -> STKOF: Stack overflow");
+    if (cfsr & SCB_CFSR_UNALIGNED_Msk)   my_log_critical_print("  -> UNALIGNED: Unaligned access");
+    if (cfsr & SCB_CFSR_DIVBYZERO_Msk)   my_log_critical_print("  -> DIVBYZERO: Divide by zero");
+
+    /* HFSR (HardFault Status Register) */
+    if (hfsr & SCB_HFSR_VECTTBL_Msk)     my_log_critical_print("  -> VECTTBL: Vector table read error");
+    if (hfsr & SCB_HFSR_FORCED_Msk)      my_log_critical_print("  -> FORCED: Forced hard fault (escalated)");
+    if (hfsr & SCB_HFSR_DEBUGEVT_Msk)    my_log_critical_print("  -> DEBUGEVT: Debug event occurred");
+
+    /* 进入死循环，等待看门狗溢出复位 */
+    while (1) { }
 }
 
 /*!
@@ -91,9 +136,18 @@ void HardFault_Handler(void)
 */
 void MemManage_Handler(void)
 {
-    /* if Memory Manage exception occurs, go to infinite loop */
-    while (1){
-    }
+    /* 使用 CMSIS 标准 SCB 结构体访问故障寄存器（提高可移植性） */
+    uint32_t cfsr = SCB->CFSR;   /* Configurable Fault Status Register */
+    uint32_t mmfar = SCB->MMFAR; /* MemManage Fault Address Register */
+
+    /* 无锁日志初始化（跳过互斥锁创建，仅初始化底层输出通道） */
+    my_log_critical_init();
+    my_log_critical_print("===== MEMMANAGE FAULT OCCURRED =====");
+    my_log_critical_print("CFSR: 0x%08X", cfsr);
+    my_log_critical_print("MMFAR: 0x%08X", mmfar);
+
+    /* 进入死循环，等待看门狗溢出复位 */
+    while (1) { }
 }
 
 /*!
@@ -105,8 +159,7 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
     /* if Bus Fault exception occurs, go to infinite loop */
-    while (1){
-    }
+    while (1) { }
 }
 
 /*!
@@ -118,8 +171,7 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
     /* if Usage Fault exception occurs, go to infinite loop */
-    while (1){
-    }
+    while (1) { }
 }
 
 /*!
@@ -140,8 +192,7 @@ void UsageFault_Handler(void)
 void DebugMon_Handler(void)
 {
     /* if DebugMon exception occurs, go to infinite loop */
-    while(1) {
-    }
+    while(1) { }
 }
 
 /*!

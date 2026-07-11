@@ -56,6 +56,22 @@ void my_log_init(void)
 }
 
 /*********************************************************************
+ * @brief   无锁日志初始化（仅用于HardFault等严重错误场景）
+ * @param   none
+ * @return  none
+ * @note    跳过互斥锁创建，仅初始化底层输出通道
+ *********************************************************************/
+void my_log_critical_init(void)
+{
+    /* 仅初始化底层输出通道，跳过互斥锁创建 */
+#if LOG_USE_RTT
+    rtt_logger_init();
+#elif LOG_USE_UART
+    uart_logger_init();
+#endif
+}
+
+/*********************************************************************
  * @brief   打印日志
  * @param   level 日志级别
  * @param   level_str 日志级别字符串
@@ -262,4 +278,60 @@ void my_log_print_stats(void)
     MY_LOG_I("Dump count: %d", sLogStats.dump_count);
     MY_LOG_I("Overflow count: %d", sLogStats.overflow_count);
     MY_LOG_I("=====================");
+}
+
+/*********************************************************************
+ * @brief   无锁关键日志输出（用于HardFault、ISR等无法使用互斥锁的场景）
+ * @param   fmt 格式化字符串
+ * @param   ... 可变参数
+ * @return  none
+ * @note    跳过互斥锁，直接使用静态缓冲区输出到RTT/UART
+ *          警告：仅用于无法获取锁的特殊场景，不可在正常流程中使用
+ *          注意：调用前一般已发生系统崩溃，需先调用 my_log_critical_init() 初始化底层输出通道
+ *          缓冲区大小：128字节，单条日志超过会被截断（但不会丢失，每条日志独立输出）
+ *********************************************************************/
+void my_log_critical_print(const char *fmt, ...)
+{
+    va_list args;
+    int len;
+    static char s_critical_buf[128];  /* 专用关键缓冲区，避免与普通日志冲突 */
+
+    /* 添加关键日志头 */
+    len = snprintf(s_critical_buf, sizeof(s_critical_buf), "[CRITICAL] ");
+    if (len < 0 || len >= sizeof(s_critical_buf))
+    {
+        len = 0;
+    }
+
+    /* 格式化用户日志 */
+    va_start(args, fmt);
+    len += vsnprintf(s_critical_buf + len, sizeof(s_critical_buf) - len, fmt, args);
+    va_end(args);
+
+    /* 检查溢出：若超过缓冲区，添加截断警告 */
+    if (len >= sizeof(s_critical_buf))
+    {
+        len = sizeof(s_critical_buf) - 1;
+        /* 在末尾添加截断标记（覆盖最后几个字符） */
+        if (len >= 3)
+        {
+            s_critical_buf[len - 3] = '.';
+            s_critical_buf[len - 2] = '.';
+            s_critical_buf[len - 1] = '.';
+        }
+    }
+
+    /* 添加换行符 */
+    if (len + 1 < sizeof(s_critical_buf))
+    {
+        s_critical_buf[len++] = '\n';
+        s_critical_buf[len] = '\0';
+    }
+
+    /* 直接输出到底层，跳过互斥锁 */
+#if LOG_USE_RTT
+    rtt_logger_write(s_critical_buf, len);
+#elif LOG_USE_UART
+    uart_logger_write(s_critical_buf, len);
+#endif
 }

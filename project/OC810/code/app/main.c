@@ -19,6 +19,8 @@
 #include "task.h"
 
 #include "my_log.h"
+#include "my_version.h"
+#include "my_main.h"
 
 /* 任务优先级定义 */
 #define INIT_TASK_PRIO          (tskIDLE_PRIORITY + 1)
@@ -48,30 +50,41 @@ int main(void)
     vTaskStartScheduler();
 
     /* 正常运行时不会执行到这里 */
-    while (1)
-    {
-    }
+    while (1) { }
 }
 
 /*********************************************************************
  * @brief   系统初始化任务
  * @param   pvParameters 任务参数（未使用）
  * @return  none
- * @note    初始化日志系统并打印系统信息，完成后自删除
+ * @note    初始化日志系统，启动主任务模块后自删除
  *********************************************************************/
 void init_task(void *pvParameters)
 {
+    (void)pvParameters;
+
     /* 初始化日志系统 */
     my_log_init();
 
     /* 打印系统信息 */
     MY_LOG_I("========================================");
-    MY_LOG_I("GD32F505VGT7 FreeRTOS Base Project");
+    MY_LOG_I("GD32F505VGT7 FreeRTOS mDVR Project");
     MY_LOG_I("System Core Clock: %d Hz", SystemCoreClock);
     MY_LOG_I("FreeRTOS Heap Size: %d bytes", configTOTAL_HEAP_SIZE);
     MY_LOG_I("FreeRTOS Version: %s", tskKERNEL_VERSION_NUMBER);
+    MY_LOG_I("app Version: %s", MY_SW_VERSION_INFO);
     MY_LOG_I("========================================");
-    MY_LOG_I("FreeRTOS scheduler started successfully!");
+
+    /* 启动主任务模块（内部会创建所有子任务） */
+    if (my_main_init() != 0)
+    {
+        MY_LOG_E("Main module init failed! System halted.");
+
+        /* 主任务初始化失败，停止系统 */
+        while (1) { }
+    }
+
+    MY_LOG_I("System initialization complete, init_task deleted.");
 
     /* 删除初始化任务 */
     vTaskDelete(NULL);
@@ -88,19 +101,22 @@ void init_task(void *pvParameters)
  *********************************************************************/
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
-    /* 栈溢出是严重错误，关闭中断并进入死循环 */
+    volatile uint32_t i;
+    volatile const char *s_fault_task = pcTaskName ? pcTaskName : "unknown";
+    (void)xTask;
+
+    /* 先输出日志（此时中断还未关闭，日志可以正常输出） */
+    MY_LOG_E("Stack overflow in task: %s", s_fault_task);
+
+    /* 等待日志输出完成（约17ms@120MHz，确保多条日志发送完毕） */
+    for (i = 0; i < 500000; i++) { }
+
+    /* 日志输出完成后关闭中断，进入死循环 */
     taskDISABLE_INTERRUPTS();
 
-    /* 调试建议：
-     * 1. 在此处设置断点
-     * 2. 查看pcTaskName确定哪个任务溢出
-     * 3. 查看xTask获取任务句柄
-     * 4. 增加该任务的栈大小
-     */
-
-    for (;;)
+    while (1)
     {
-        /* 死循环 - 需要调试时在此处设断点 */
+        /* 死循环，等待看门狗溢出复位（若应用层已启动看门狗） */
     }
 }
 
@@ -114,18 +130,20 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
  *********************************************************************/
 void vApplicationMallocFailedHook(void)
 {
-    /* 内存分配失败是严重错误，关闭中断并进入死循环 */
+    volatile uint32_t i;
+    volatile uint32_t s_free_heap = xPortGetFreeHeapSize();
+
+    /* 先输出日志（此时中断还未关闭，日志可以正常输出） */
+    MY_LOG_E("Malloc failed! Free heap: %d bytes", (int)s_free_heap);
+
+    /* 等待日志输出完成（约17ms@120MHz，确保多条日志发送完毕） */
+    for (i = 0; i < 500000; i++) { }
+
+    /* 日志输出完成后关闭中断，进入死循环 */
     taskDISABLE_INTERRUPTS();
 
-    /* 调试建议：
-     * 1. 在此处设置断点
-     * 2. 调用xPortGetFreeHeapSize()查看剩余堆大小
-     * 3. 检查是否有内存泄漏
-     * 4. 考虑增加configTOTAL_HEAP_SIZE
-     */
-
-    for (;;)
+    while (1)
     {
-        /* 死循环 - 需要调试时在此处设断点 */
+        /* 死循环，等待看门狗溢出复位（若应用层已启动看门狗） */
     }
 }

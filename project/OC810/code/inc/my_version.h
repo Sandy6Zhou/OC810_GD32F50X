@@ -17,12 +17,6 @@
  * 硬件版本定义
  *********************************************************************/
 
-/** 硬件主版本号 */
-#define MY_HW_VERSION_MAJOR   (1U)
-
-/** 硬件次版本号 */
-#define MY_HW_VERSION_MINOR   (0U)
-
 /** 硬件版本字符串 */
 #define MY_HW_VERSION_STRING  "HW:OC810-M-V1.0"
 
@@ -37,41 +31,16 @@
  *   260605   - 构建日期（YYMMDD）
  *   01       - 当天构建序号（01~99）
  *********************************************************************/
+/** 软件版本全称字符串 */
+#define MY_SW_VERSION_STRING    "JM-OC810MCU-STD-V1.0.260608.01"
 
-/** 公司标识 */
-#define MY_SW_VERSION_COMPANY   "JM"
+/** 编译日期（编译器内置宏） */
+#define MY_SW_BUILD_DATE        __DATE__
 
-/** 产品型号 */
-#define MY_SW_VERSION_PRODUCT   "OC810"
+/** 编译时间（编译器内置宏） */
+#define MY_SW_BUILD_TIME        __TIME__
 
-/** 平台类型（MCU=单片机，LNX=Linux） */
-#define MY_SW_VERSION_PLATFORM  "MCU"
-
-/** 版本类型（STD=标准版，CUS=客户定制版） */
-#define MY_SW_VERSION_TYPE      "STD"
-
-/** 主版本号（重大功能变更时递增） */
-#define MY_SW_VERSION_MAJOR     (1U)
-
-/** 次版本号（新功能添加时递增） */
-#define MY_SW_VERSION_MINOR     (0U)
-
-/** 构建日期（YYMMDD格式） */
-#define MY_SW_VERSION_DATE      "260605"
-
-/** 当天构建序号（01~99） */
-#define MY_SW_VERSION_BUILD     "01"
-
-/** 软件版本全称（自动拼接） */
-#define MY_SW_VERSION_STRING    MY_SW_VERSION_COMPANY "-" \
-                                 MY_SW_VERSION_PRODUCT \
-                                 MY_SW_VERSION_PLATFORM "-" \
-                                 MY_SW_VERSION_TYPE "-V" \
-                                 #MY_SW_VERSION_MAJOR "." #MY_SW_VERSION_MINOR "." \
-                                 MY_SW_VERSION_DATE "." \
-                                 MY_SW_VERSION_BUILD
-
-/** 软件版本信息（带构建时间，用于启动打印） */
-#define MY_SW_VERSION_INFO      MY_SW_VERSION_STRING " (" __TIME__ ")"
+/** 软件版本信息（带构建日期和时间，用于启动打印） */
+#define MY_SW_VERSION_INFO      MY_SW_VERSION_STRING " (Build: " MY_SW_BUILD_DATE " " MY_SW_BUILD_TIME ")"
 
 #endif /* __MY_VERSION_H__ */

@@ -34,16 +34,16 @@
  * 调试开关：1=开启LittleFS内部日志和断言，0=关闭（发布模式）
  * 切换此宏即可在调试/发布模式间切换，无需修改 Keil 工程配置
  *****************************************************************************/
-#define LFS_LOG_ENABLE          0
+#define LFS_LOG_ENABLE          1
 
 #if LFS_LOG_ENABLE
 
 /* === 调试模式：将LittleFS日志重定向到MY_LOG系统 === */
 
-#define LFS_ERROR(fmt, ...)   MY_LOG_E("[LFS] " fmt, ##__VA_ARGS__)
-#define LFS_WARN(fmt, ...)    MY_LOG_W("[LFS] " fmt, ##__VA_ARGS__)
-#define LFS_DEBUG(fmt, ...)   MY_LOG_D("[LFS] " fmt, ##__VA_ARGS__)
-#define LFS_TRACE(fmt, ...)   MY_LOG_D("[LFS_TRACE] " fmt, ##__VA_ARGS__)
+#define LFS_ERROR(fmt, ...)   MY_LOG_E(fmt, ##__VA_ARGS__)
+#define LFS_WARN(fmt, ...)    MY_LOG_W(fmt, ##__VA_ARGS__)
+#define LFS_DEBUG(fmt, ...)   MY_LOG_D(fmt, ##__VA_ARGS__)
+#define LFS_TRACE(fmt, ...)   MY_LOG_I(fmt, ##__VA_ARGS__)
 
 #define LFS_ASSERT(test) do { \
     if (!(test)) { \

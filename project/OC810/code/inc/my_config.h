@@ -22,35 +22,33 @@
 #include "task.h"
 
 /*********************************************************************
- * 任务优先级等级定义
+ * 任务优先级配置（数值越大优先级越高，按优先级从高到低排列）
  *********************************************************************/
-
-/**
- * @brief 任务优先级等级（数值越大优先级越高）
- * @note 基于 configMAX_PRIORITIES 划分等级
- * @note 实际优先级 = tskIDLE_PRIORITY + 等级偏移
- */
-#define MY_TASK_PRIORITY_IDLE       (tskIDLE_PRIORITY + 0)    /**< 空闲级（最低） */
-#define MY_TASK_PRIORITY_LOW        (tskIDLE_PRIORITY + 1)    /**< 低优先级 */
-#define MY_TASK_PRIORITY_NORMAL     (tskIDLE_PRIORITY + 2)    /**< 普通优先级 */
-#define MY_TASK_PRIORITY_HIGH       (tskIDLE_PRIORITY + 3)    /**< 高优先级 */
-#define MY_TASK_PRIORITY_CRITICAL   (tskIDLE_PRIORITY + 4)    /**< 关键级（最高） */
+#define MY_CAN_TASK_PRIO        (tskIDLE_PRIORITY + 5)     /**< CAN车载通信 - 最高 */
+#define MY_MAIN_TASK_PRIO       (tskIDLE_PRIORITY + 4)     /**< 主任务协调 */
+#define MY_CTRL_TASK_PRIO       (tskIDLE_PRIORITY + 4)     /**< 控制模块 */
+#define MY_SHELL_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RTT Shell调试 */
+#define MY_NT98XX_TASK_PRIO     (tskIDLE_PRIORITY + 3)     /**< 视频芯片 */
+#define MY_RS485_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RS485串口 */
+#define MY_RS232_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RS232串口 */
+#define MY_GNSS_TASK_PRIO       (tskIDLE_PRIORITY + 2)     /**< GNSS定位 */
+#define MY_GSENSOR_TASK_PRIO    (tskIDLE_PRIORITY + 2)     /**< G传感器 */
+#define MY_AMS_TASK_PRIO        (tskIDLE_PRIORITY + 2)     /**< 自动消息 */
 
 /*********************************************************************
  * 任务栈大小配置（单位：字，1字=4字节）
  *********************************************************************/
+/**
+ * @brief MAIN主任务栈大小
+ * @note 主任务负责协调管理所有子任务，需要较大栈空间
+ */
+#define MY_MAIN_TASK_STACK_SIZE         (configMINIMAL_STACK_SIZE * 4)
 
 /**
- * @brief AMS模块任务栈大小
- * @note AMS负责自动消息发送，逻辑简单
+ * @brief RTT Shell任务栈大小
+ * @note Shell支持命令解析和输出，需要较大栈空间
  */
-#define MY_AMS_TASK_STACK_SIZE          (configMINIMAL_STACK_SIZE * 2)
-
-/**
- * @brief CAN模块任务栈大小
- * @note CAN处理协议栈解析，需要中等栈空间
- */
-#define MY_CAN_TASK_STACK_SIZE          (configMINIMAL_STACK_SIZE * 4)
+#define MY_SHELL_TASK_STACK_SIZE        (configMINIMAL_STACK_SIZE * 3)
 
 /**
  * @brief CTRL模块任务栈大小
@@ -59,10 +57,10 @@
 #define MY_CTRL_TASK_STACK_SIZE         (configMINIMAL_STACK_SIZE * 6)
 
 /**
- * @brief GNSS模块任务栈大小
- * @note GNSS解析NMEA协议，需要中等栈空间
+ * @brief NT98XX模块任务栈大小
+ * @note NT98XX视频芯片控制，逻辑中等
  */
-#define MY_GNSS_TASK_STACK_SIZE         (configMINIMAL_STACK_SIZE * 3)
+#define MY_NT98XX_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE * 2)
 
 /**
  * @brief GSENSOR模块任务栈大小
@@ -71,22 +69,16 @@
 #define MY_GSENSOR_TASK_STACK_SIZE      (configMINIMAL_STACK_SIZE * 2)
 
 /**
- * @brief MAIN主任务栈大小
- * @note 主任务负责协调管理所有子任务，需要较大栈空间
+ * @brief GNSS模块任务栈大小
+ * @note GNSS解析NMEA协议，需要中等栈空间
  */
-#define MY_MAIN_TASK_STACK_SIZE         (configMINIMAL_STACK_SIZE * 4)
+#define MY_GNSS_TASK_STACK_SIZE         (configMINIMAL_STACK_SIZE * 3)
 
 /**
- * @brief NT98XX模块任务栈大小
- * @note NT98XX视频芯片控制，逻辑中等
+ * @brief CAN模块任务栈大小
+ * @note CAN处理协议栈解析，需要中等栈空间
  */
-#define MY_NT98XX_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE * 2)
-
-/**
- * @brief RS232模块任务栈大小
- * @note RS232串口通信，需要中等栈空间
- */
-#define MY_RS232_TASK_STACK_SIZE        (configMINIMAL_STACK_SIZE * 3)
+#define MY_CAN_TASK_STACK_SIZE          (configMINIMAL_STACK_SIZE * 4)
 
 /**
  * @brief RS485模块任务栈大小
@@ -95,77 +87,44 @@
 #define MY_RS485_TASK_STACK_SIZE        (configMINIMAL_STACK_SIZE * 3)
 
 /**
- * @brief RTT Shell任务栈大小
- * @note Shell支持命令解析和输出，需要较大栈空间
+ * @brief RS232模块任务栈大小
+ * @note RS232串口通信，需要中等栈空间
  */
-#define MY_SHELL_TASK_STACK_SIZE        (configMINIMAL_STACK_SIZE * 3)
-
-/*********************************************************************
- * 任务优先级配置
- *********************************************************************/
+#define MY_RS232_TASK_STACK_SIZE        (configMINIMAL_STACK_SIZE * 3)
 
 /**
- * @brief AMS模块任务优先级
+ * @brief AMS模块任务栈大小
+ * @note AMS负责自动消息发送，逻辑简单
  */
-#define MY_AMS_TASK_PRIO                (MY_TASK_PRIORITY_LOW)
-
-/**
- * @brief CAN模块任务优先级
- * @note CAN为车载通信关键模块，优先级最高
- */
-#define MY_CAN_TASK_PRIO                (MY_TASK_PRIORITY_HIGH)
-
-/**
- * @brief CTRL模块任务优先级
- * @note 控制任务需要响应按键，优先级略高于普通
- */
-#define MY_CTRL_TASK_PRIO               (MY_TASK_PRIORITY_NORMAL + 1)
-
-/**
- * @brief GNSS模块任务优先级
- */
-#define MY_GNSS_TASK_PRIO               (MY_TASK_PRIORITY_LOW)
-
-/**
- * @brief GSENSOR模块任务优先级
- */
-#define MY_GSENSOR_TASK_PRIO            (MY_TASK_PRIORITY_LOW)
-
-/**
- * @brief MAIN主任务优先级
- * @note 主任务负责协调，优先级高于普通任务
- */
-#define MY_MAIN_TASK_PRIO               (MY_TASK_PRIORITY_NORMAL + 1)
-
-/**
- * @brief NT98XX模块任务优先级
- */
-#define MY_NT98XX_TASK_PRIO             (MY_TASK_PRIORITY_NORMAL)
-
-/**
- * @brief RS232模块任务优先级
- */
-#define MY_RS232_TASK_PRIO              (MY_TASK_PRIORITY_NORMAL)
-
-/**
- * @brief RS485模块任务优先级
- */
-#define MY_RS485_TASK_PRIO              (MY_TASK_PRIORITY_NORMAL)
-
-/**
- * @brief RTT Shell任务优先级
- * @note Shell为调试工具，优先级较低
- */
-#define MY_SHELL_TASK_PRIO              (MY_TASK_PRIORITY_NORMAL)
+#define MY_AMS_TASK_STACK_SIZE          (configMINIMAL_STACK_SIZE * 2)
 
 /*********************************************************************
  * 消息队列深度配置（单位：消息条数）
  *********************************************************************/
+/**
+ * @brief MAIN主任务消息队列深度
+ */
+#define MY_MAIN_MSG_QUEUE_DEPTH         (8)
 
 /**
- * @brief AMS模块消息队列深度
+ * @brief CTRL模块消息队列深度
  */
-#define MY_AMS_MSG_QUEUE_DEPTH          (8)
+#define MY_CTRL_MSG_QUEUE_DEPTH         (8)
+
+/**
+ * @brief NT98XX模块消息队列深度
+ */
+#define MY_NT98XX_MSG_QUEUE_DEPTH       (8)
+
+/**
+ * @brief GSENSOR模块消息队列深度
+ */
+#define MY_GSENSOR_MSG_QUEUE_DEPTH      (8)
+
+/**
+ * @brief GNSS模块消息队列深度
+ */
+#define MY_GNSS_MSG_QUEUE_DEPTH         (8)
 
 /**
  * @brief CAN模块消息队列深度
@@ -174,29 +133,10 @@
 #define MY_CAN_MSG_QUEUE_DEPTH          (16)
 
 /**
- * @brief CTRL模块消息队列深度
+ * @brief RS485模块消息队列深度
+ * @note RS485数据量大，队列需要较深
  */
-#define MY_CTRL_MSG_QUEUE_DEPTH         (8)
-
-/**
- * @brief GNSS模块消息队列深度
- */
-#define MY_GNSS_MSG_QUEUE_DEPTH         (8)
-
-/**
- * @brief GSENSOR模块消息队列深度
- */
-#define MY_GSENSOR_MSG_QUEUE_DEPTH      (8)
-
-/**
- * @brief MAIN主任务消息队列深度
- */
-#define MY_MAIN_MSG_QUEUE_DEPTH         (8)
-
-/**
- * @brief NT98XX模块消息队列深度
- */
-#define MY_NT98XX_MSG_QUEUE_DEPTH       (8)
+#define MY_RS485_MSG_QUEUE_DEPTH        (16)
 
 /**
  * @brief RS232模块消息队列深度
@@ -205,10 +145,21 @@
 #define MY_RS232_MSG_QUEUE_DEPTH        (16)
 
 /**
- * @brief RS485模块消息队列深度
- * @note RS485数据量大，队列需要较深
+ * @brief AMS模块消息队列深度
  */
-#define MY_RS485_MSG_QUEUE_DEPTH        (16)
+#define MY_AMS_MSG_QUEUE_DEPTH          (8)
+
+/**
+ * @brief RTT Shell模块消息队列深度（仅接收系统级命令）
+ */
+#define MY_SHELL_MSG_QUEUE_DEPTH        (4)
+
+/*********************************************************************
+ * Shell功能配置
+ *********************************************************************/
+#define MY_SHELL_LINE_MAX       (128)       /**< 单行命令最大长度 */
+#define MY_SHELL_ARGC_MAX       (8)         /**< 单条命令最大参数个数 */
+#define MY_SHELL_PROMPT         "rtt> "   /**< 命令提示符 */
 
 /*********************************************************************
  * 资源汇总统计（编译期校验）
@@ -219,16 +170,16 @@
  * @note 仅统计应用层任务，不含FreeRTOS空闲任务/定时器任务
  */
 #define MY_TOTAL_TASK_STACK_WORDS   ( \
-    MY_AMS_TASK_STACK_SIZE + \
-    MY_CAN_TASK_STACK_SIZE + \
-    MY_CTRL_TASK_STACK_SIZE + \
-    MY_GNSS_TASK_STACK_SIZE + \
-    MY_GSENSOR_TASK_STACK_SIZE + \
     MY_MAIN_TASK_STACK_SIZE + \
+    MY_SHELL_TASK_STACK_SIZE + \
+    MY_CTRL_TASK_STACK_SIZE + \
     MY_NT98XX_TASK_STACK_SIZE + \
-    MY_RS232_TASK_STACK_SIZE + \
+    MY_GSENSOR_TASK_STACK_SIZE + \
+    MY_GNSS_TASK_STACK_SIZE + \
+    MY_CAN_TASK_STACK_SIZE + \
     MY_RS485_TASK_STACK_SIZE + \
-    MY_SHELL_TASK_STACK_SIZE \
+    MY_RS232_TASK_STACK_SIZE + \
+    MY_AMS_TASK_STACK_SIZE \
 )
 
 /**
@@ -242,15 +193,16 @@
  * @note 实际占用 = 队列深度 * 消息大小 * 队列数量
  */
 #define MY_TOTAL_QUEUE_BYTES        ( \
-    (MY_AMS_MSG_QUEUE_DEPTH + \
-     MY_CAN_MSG_QUEUE_DEPTH + \
+    (MY_MAIN_MSG_QUEUE_DEPTH + \
      MY_CTRL_MSG_QUEUE_DEPTH + \
-     MY_GNSS_MSG_QUEUE_DEPTH + \
-     MY_GSENSOR_MSG_QUEUE_DEPTH + \
-     MY_MAIN_MSG_QUEUE_DEPTH + \
      MY_NT98XX_MSG_QUEUE_DEPTH + \
+     MY_GSENSOR_MSG_QUEUE_DEPTH + \
+     MY_GNSS_MSG_QUEUE_DEPTH + \
+     MY_CAN_MSG_QUEUE_DEPTH + \
+     MY_RS485_MSG_QUEUE_DEPTH + \
      MY_RS232_MSG_QUEUE_DEPTH + \
-     MY_RS485_MSG_QUEUE_DEPTH) * 12U \
+     MY_AMS_MSG_QUEUE_DEPTH + \
+     MY_SHELL_MSG_QUEUE_DEPTH) * 12U \
 )
 
 /**
@@ -272,10 +224,10 @@ _Static_assert(
  */
 #define MY_TASK_COUNT   (10)  /* AMS/CAN/CTRL/GNSS/GSENSOR/MAIN/NT98XX/RS232/RS485/SHELL */
 
-/* 编译期校验：任务优先级不超过configMAX_PRIORITIES */
+/* 编译期校验：最高优先级不超过configMAX_PRIORITIES */
 _Static_assert(
-    MY_TASK_PRIORITY_CRITICAL < configMAX_PRIORITIES,
-    "Highest task priority exceeds configMAX_PRIORITIES! Please adjust priority levels."
+    MY_CAN_TASK_PRIO < configMAX_PRIORITIES,
+    "Highest task priority exceeds configMAX_PRIORITIES! Please adjust."
 );
 
 #endif /* __MY_CONFIG_H__ */

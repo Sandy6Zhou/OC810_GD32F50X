@@ -389,14 +389,59 @@
               <FilePath>..\code\app\gd32f50x_it.c</FilePath>
             </File>
             <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\main.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_main.c</FilePath>
+            </File>
+            <File>
               <FileName>my_rtt_shell.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\app\my_rtt_shell.c</FilePath>
             </File>
             <File>
-              <FileName>main_os_api_test.c</FileName>
+              <FileName>my_ctrl.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\test\main_os_api_test.c</FilePath>
+              <FilePath>..\code\app\my_ctrl.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_nt98xx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_nt98xx.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_gsensor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_gsensor.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_gnss.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_gnss.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_can.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_can.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_rs232.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_rs232.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_rs485.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_rs485.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_ams.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\app\my_ams.c</FilePath>
             </File>
           </Files>
         </Group>

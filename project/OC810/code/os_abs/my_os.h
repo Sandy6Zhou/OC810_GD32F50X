@@ -30,9 +30,6 @@
 #include "semphr.h"
 #include "event_groups.h"
 
-/* 业务公共定义（消息ID/定时器ID） */
-#include "my_comm.h"
-
 /*********************************************************************
  * OS抽象层日志配置
  *********************************************************************/
@@ -168,7 +165,8 @@ typedef SemaphoreHandle_t my_sem_t;
  */
 typedef QueueHandle_t my_msg_queue_t;
 
-/* 注意：my_msg_id_e / my_msg_t 已迁移到 my_comm.h 统一管理 */
+/* 消息结构体前向声明（完整定义在 my_comm.h） */
+struct my_msg;
 
 /*********************************************************************
  * 定时器管理配置
@@ -511,7 +509,7 @@ my_msg_queue_t my_msg_queue_create(uint32_t queue_len, uint32_t item_size);
  * @return 0=成功，-1=失败（队列满或超时）
  * @note 此函数只能从任务上下文调用，不能在中断中使用
  */
-int32_t my_msg_send(my_msg_queue_t queue, const my_msg_t *msg, uint32_t timeout_ms);
+int32_t my_msg_send(my_msg_queue_t queue, const struct my_msg *msg, uint32_t timeout_ms);
 
 /**
  * @brief 发送消息（从中断上下文调用）
@@ -521,7 +519,7 @@ int32_t my_msg_send(my_msg_queue_t queue, const my_msg_t *msg, uint32_t timeout_
  * @return 0=成功，-1=失败（队列满）
  * @note 此函数只能从中断上下文调用
  */
-int32_t my_msg_send_from_isr(my_msg_queue_t queue, const my_msg_t *msg,
+int32_t my_msg_send_from_isr(my_msg_queue_t queue, const struct my_msg *msg,
                               my_base_type_t *higher_priority_task_woken);
 
 /**
@@ -532,7 +530,7 @@ int32_t my_msg_send_from_isr(my_msg_queue_t queue, const my_msg_t *msg,
  * @return 0=成功，-1=失败（队列空或超时）
  * @note 此函数只能从任务上下文调用，不能在中断中使用
  */
-int32_t my_msg_recv(my_msg_queue_t queue, my_msg_t *msg, uint32_t timeout_ms);
+int32_t my_msg_recv(my_msg_queue_t queue, struct my_msg *msg, uint32_t timeout_ms);
 
 /**
  * @brief 接收消息（从中断上下文调用）
@@ -542,7 +540,7 @@ int32_t my_msg_recv(my_msg_queue_t queue, my_msg_t *msg, uint32_t timeout_ms);
  * @return 0=成功，-1=失败（队列空）
  * @note 此函数只能从中断上下文调用
  */
-int32_t my_msg_recv_from_isr(my_msg_queue_t queue, my_msg_t *msg,
+int32_t my_msg_recv_from_isr(my_msg_queue_t queue, struct my_msg *msg,
                               my_base_type_t *higher_priority_task_woken);
 
 /**
@@ -565,6 +563,66 @@ uint32_t my_msg_queue_get_spaces(my_msg_queue_t queue);
  * @return 0=成功，-1=失败
  */
 int32_t my_msg_queue_reset(my_msg_queue_t queue);
+
+/*********************************************************************
+ * 定时器ID槽位定义（框架层，最多支持50个）
+ * @note 应用层具体ID名称在 my_comm.h 中用 #define 映射
+ *********************************************************************/
+typedef enum
+{
+    MY_TIMER_ID_SLOT_0 = 0,
+    MY_TIMER_ID_SLOT_1,
+    MY_TIMER_ID_SLOT_2,
+    MY_TIMER_ID_SLOT_3,
+    MY_TIMER_ID_SLOT_4,
+    MY_TIMER_ID_SLOT_5,
+    MY_TIMER_ID_SLOT_6,
+    MY_TIMER_ID_SLOT_7,
+    MY_TIMER_ID_SLOT_8,
+    MY_TIMER_ID_SLOT_9,
+    MY_TIMER_ID_SLOT_10,
+    MY_TIMER_ID_SLOT_11,
+    MY_TIMER_ID_SLOT_12,
+    MY_TIMER_ID_SLOT_13,
+    MY_TIMER_ID_SLOT_14,
+    MY_TIMER_ID_SLOT_15,
+    MY_TIMER_ID_SLOT_16,
+    MY_TIMER_ID_SLOT_17,
+    MY_TIMER_ID_SLOT_18,
+    MY_TIMER_ID_SLOT_19,
+    MY_TIMER_ID_SLOT_20,
+    MY_TIMER_ID_SLOT_21,
+    MY_TIMER_ID_SLOT_22,
+    MY_TIMER_ID_SLOT_23,
+    MY_TIMER_ID_SLOT_24,
+    MY_TIMER_ID_SLOT_25,
+    MY_TIMER_ID_SLOT_26,
+    MY_TIMER_ID_SLOT_27,
+    MY_TIMER_ID_SLOT_28,
+    MY_TIMER_ID_SLOT_29,
+    MY_TIMER_ID_SLOT_30,
+    MY_TIMER_ID_SLOT_31,
+    MY_TIMER_ID_SLOT_32,
+    MY_TIMER_ID_SLOT_33,
+    MY_TIMER_ID_SLOT_34,
+    MY_TIMER_ID_SLOT_35,
+    MY_TIMER_ID_SLOT_36,
+    MY_TIMER_ID_SLOT_37,
+    MY_TIMER_ID_SLOT_38,
+    MY_TIMER_ID_SLOT_39,
+    MY_TIMER_ID_SLOT_40,
+    MY_TIMER_ID_SLOT_41,
+    MY_TIMER_ID_SLOT_42,
+    MY_TIMER_ID_SLOT_43,
+    MY_TIMER_ID_SLOT_44,
+    MY_TIMER_ID_SLOT_45,
+    MY_TIMER_ID_SLOT_46,
+    MY_TIMER_ID_SLOT_47,
+    MY_TIMER_ID_SLOT_48,
+    MY_TIMER_ID_SLOT_49,
+
+    MY_TIMER_ID_SLOT_MAX                 /**< 定时器槽位总数 */
+} my_timer_id_e;
 
 /*********************************************************************
  * 定时器管理接口

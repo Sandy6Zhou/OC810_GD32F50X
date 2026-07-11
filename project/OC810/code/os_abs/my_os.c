@@ -14,6 +14,7 @@
 *********************************************************************/
 
 #include "my_os.h"
+#include "my_comm.h"
 #include "gd32f50x.h"
 #include <string.h>
 
@@ -29,7 +30,7 @@ typedef struct
 } my_timer_ctrl_t;
 
 /** 定时器控制表  */
-static my_timer_ctrl_t s_timer_ctrl[MY_TIMER_ID_MAX] = {0};
+static my_timer_ctrl_t s_timer_ctrl[MY_TIMER_ID_SLOT_MAX] = {0};
 
 /*********************************************************************
  * 任务管理接口实现
@@ -565,7 +566,7 @@ int32_t my_timer_create(my_timer_id_e timer_id, my_timer_callback_t callback,
     TickType_t period_ticks;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX || callback == NULL)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX || callback == NULL)
     {
         MY_OS_LOGE("Invalid timer parameters: id=%d", timer_id);
         return -1;
@@ -617,7 +618,7 @@ int32_t my_timer_create(my_timer_id_e timer_id, my_timer_callback_t callback,
 int32_t my_timer_delete(my_timer_id_e timer_id)
 {
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         MY_OS_LOGE("Invalid timer ID: %d", timer_id);
         return -1;
@@ -651,7 +652,7 @@ int32_t my_timer_delete(my_timer_id_e timer_id)
  *********************************************************************/
 bool my_timer_is_running(my_timer_id_e timer_id)
 {
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         return false;
     }
@@ -672,7 +673,7 @@ int32_t my_timer_start(my_timer_id_e timer_id, uint32_t timeout_ms)
     TickType_t ticks;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         MY_OS_LOGE("Invalid timer ID: %d", timer_id);
         return -1;
@@ -723,7 +724,7 @@ int32_t my_timer_start_from_isr(my_timer_id_e timer_id)
     BaseType_t higher_priority_task_woken = pdFALSE;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         return -1;
     }
@@ -760,7 +761,7 @@ int32_t my_timer_stop(my_timer_id_e timer_id)
     BaseType_t ret;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         MY_OS_LOGE("Invalid timer ID: %d", timer_id);
         return -1;
@@ -798,7 +799,7 @@ int32_t my_timer_stop_from_isr(my_timer_id_e timer_id)
     BaseType_t higher_priority_task_woken = pdFALSE;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         return -1;
     }
@@ -836,7 +837,7 @@ int32_t my_timer_reset(my_timer_id_e timer_id)
     BaseType_t ret;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         MY_OS_LOGE("Invalid timer ID: %d", timer_id);
         return -1;
@@ -876,7 +877,7 @@ int32_t my_timer_reset_from_isr(my_timer_id_e timer_id)
     BaseType_t higher_priority_task_woken = pdFALSE;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         return -1;
     }
@@ -916,7 +917,7 @@ int32_t my_timer_change(my_timer_id_e timer_id, uint32_t new_period_ms)
     TickType_t ticks;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         MY_OS_LOGE("Invalid timer ID: %d", timer_id);
         return -1;
@@ -958,7 +959,7 @@ int32_t my_timer_change_from_isr(my_timer_id_e timer_id, uint32_t new_period_ms)
     TickType_t ticks;
 
     /* 参数检查 */
-    if (timer_id >= MY_TIMER_ID_MAX)
+    if (timer_id >= MY_TIMER_ID_SLOT_MAX)
     {
         return -1;
     }
