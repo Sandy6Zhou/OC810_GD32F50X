@@ -167,7 +167,7 @@ void my_log_print(int level, const char *level_str, const char *function, const 
  * @param   data 数据指针
  * @param   len 数据长度
  * @return  none
- * @note    输出Hex和ASCII格式，仅DEBUG级别有效，使用静态缓冲区+互斥锁
+ * @note    输出Hex和ASCII格式，仅>=INFO级别有效，使用静态缓冲区+互斥锁
  *********************************************************************/
 void my_log_dump(const char *tag, const void *data, uint32_t len)
 {

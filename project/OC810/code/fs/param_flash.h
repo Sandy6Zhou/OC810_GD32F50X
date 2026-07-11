@@ -18,7 +18,7 @@
 ** 3. mcuboot操作升级时对app分区的读写需要注意不同BANK的BLOCK大小,确保读写正确
 ** 4. 实在要跨BANK时还要考虑到跨BANK前的SIZE必须是BLOCK_SIZE的整数倍，跨BANK后的SIZE也必须是BLOCK_SIZE的整数倍
 ** 5. 每个分区必须是BLOCK_SIZE的整数倍
-** 6. 确保setting_storage放在零等待区，提高文件系统性能
+** 6. 确保setting_storage尽可能放在零等待区（0x08000000~0x0801FFFF），提高文件系统性能
 ** 7. 保证mcuboot + setting_storage = 256KB
 ** 8. 如果mcuboot分配区过小，可以考虑减少setting_storage大小
 ** 9. mcuboot采用裸机YMODEM方案，从视频模块升级，不支持网络
@@ -38,7 +38,7 @@
  * GD32F505VGT7 Internal FLASH 分区布局 (1MB = 1024KB)
  *******************************************************************************
  * 【用户FLASH区】（可编程擦除，总计1MB）
- * Bank0 (0x08000000~0x0807FFFF): 512KB, 256扇区×2KB, 前256KB零等待
+ * Bank0 (0x08000000~0x0807FFFF): 512KB, 256扇区×2KB, 前128KB零等待
  * Bank1 (0x08080000~0x080FFFFF): 512KB, 128扇区×4KB
  *******************************************************************************
  *
@@ -67,23 +67,23 @@
  *******************************************************************************
  * - 原厂BootLoader: 0x1FFFB000~0x1FFFF7FF (18KB, 系统ROM, 独立地址空间)
  * - 用户FLASH总计: 1MB (Bank0 512KB + Bank1 512KB)
- * - Bank0 (0x08000000~0x0807FFFF): 512KB, 256扇区×2KB, 前256KB零等待
+ * - Bank0 (0x08000000~0x0807FFFF): 512KB, 256扇区×2KB, 前128KB零等待
  * - Bank1 (0x08080000~0x080FFFFF): 512KB, 128扇区×4KB
  * - 调试阶段：APP在0x08000000，LittleFS在0x080C7000（Bank1），互不冲突
- * - 正式阶段：setting_storage在Bank0零等待区，100%性能最优
+ * - 正式阶段：setting_storage在Bank0，前80KB在零等待区
  *******************************************************************************
  *
  * 【setting_storage 分区详情（本模块使用）】
  *******************************************************************************
  * 调试阶段：setting_storage (208KB = 52扇区 × 4KB) - Bank1
- * 正式阶段：setting_storage (208KB = 104扇区 × 2KB) - Bank0零等待区
+ * 正式阶段：setting_storage (208KB = 104扇区 × 2KB) - Bank0（前80KB零等待）
  * 起始地址: 0x080C7000 (调试) / 0x0800C000 (正式)
  * 结束地址: 0x080FAFFF (调试) / 0x0803FFFF (正式)
  * 扇区大小: 4KB (调试，Bank1硬件页) / 2KB (正式，Bank0硬件页)
  * 文件系统: LittleFS v2.11.3
  *******************************************************************************
  * 用途: 系统配置、网络参数、设备参数、用户设置、校准数据、GPS离线缓存等
- * 特性: 掉电安全、磨损均衡、FOTA隔离、零等待性能（正式阶段）
+ * 特性: 掉电安全、磨损均衡、FOTA隔离、部分零等待性能（正式阶段前80KB）
  * 寿命: >47年（公式: 104扇区×10K寿命/(年4380次×K), K=5为保守值）
  * GPS策略: RAM缓存50条(5KB) + FLASH保存最后10条(1KB)，每2小时刷新
  *******************************************************************************/
@@ -98,7 +98,7 @@
  *
  * PARAM_DEBUG_MODE = 0: 正式阶段（BootLoader实现后）
  *   - APP编译地址：0x08040000（setting_storage之后）
- *   - setting_storage地址：0x0800C000（Bank0零等待区）
+ *   - setting_storage地址：0x0800C000（Bank0，前80KB在零等待区）
  *   - 用途：量产版本，完整FLASH分区布局
  ******************************************************************************/
 
@@ -113,8 +113,8 @@
     #define PARAM_PARTITION_SETTING_SECTOR_COUNT    52              /**< 52个扇区（208KB / 4KB） */
     /* 地址范围：0x080C7000~0x080FAFFF */
 #else
-    /* 正式阶段：使用Bank0零等待区 */
-    #define PARAM_PARTITION_SETTING_BASE            0x0800C000UL    /**< setting_storage起始地址 - Bank0零等待区 */
+    /* 正式阶段：使用Bank0（前80KB在零等待区） */
+    #define PARAM_PARTITION_SETTING_BASE            0x0800C000UL    /**< setting_storage起始地址 - Bank0，0x0800C000~0x0801FFFF在零等待区 */
     #define PARAM_PARTITION_SETTING_SIZE            (208 * 1024UL)  /**< 208KB */
     #define PARAM_PARTITION_SETTING_SECTOR_SIZE     (2 * 1024UL)    /**< 2KB/扇区（Bank0硬件页大小） */
     #define PARAM_PARTITION_SETTING_SECTOR_COUNT    104             /**< 104个扇区（208KB / 2KB） */

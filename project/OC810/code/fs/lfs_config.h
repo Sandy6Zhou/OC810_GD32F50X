@@ -142,7 +142,7 @@ static inline void lfs_safe_free(void **p)
  *      修改PARAM_DEBUG_MODE即可切换调试/正式阶段
  *
  * 调试阶段：0x080C7000~0x080FAFFF (208KB, factory_storage之前)
- * 正式阶段：0x0800C000~0x0803FFFF (208KB, Bank0零等待区)
+ * 正式阶段：0x0800C000~0x0803FFFF (208KB, Bank0, 前80KB零等待)
  ******************************************************************************/
 
 /* FLASH物理参数（与param_flash.h保持一致） */
