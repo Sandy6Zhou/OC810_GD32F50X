@@ -778,6 +778,11 @@
               <FileType>1</FileType>
               <FilePath>..\code\driver\rtc_driver.c</FilePath>
             </File>
+            <File>
+              <FileName>wdg_driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\driver\wdg_driver.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
