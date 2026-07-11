@@ -10,7 +10,7 @@
 ** 功能描述：       1. 实现多UART独立管理和状态机控制
 **                 2. 实现注册/卸载/收发/电源管理功能
 **                 3. 支持5种TX模式（轮询/中断/DMA同步/DMA异步/DMA双缓冲）
-**                 4. 支持DMA接收、IDLE空闲中断、RingBuffer
+**                 4. 支持DMA接收、IDLE空闲中断、RingBuffer（含半满中断通知防溢出）
 **                 5. 支持低功耗挂起/恢复、线程安全
 **                 6. 驱动层与应用层完全解耦，内存由应用层管理
 **                 7. 每个UART端口可独立配置运行时TX模式
@@ -58,16 +58,17 @@ typedef struct {
     drv_uart_config_t   config;             /**< 应用层配置（只读） */
     drv_uart_state_e    state;              /**< 当前状态 */
     drv_uart_tx_mode_e  tx_mode;            /**< 发送模式 */
-    SemaphoreHandle_t tx_mutex;         /**< 发送互斥锁 */
-    SemaphoreHandle_t tx_sem;           /**< DMA发送完成信号量（仅异步模式） */
+    SemaphoreHandle_t tx_mutex;             /**< 发送互斥锁 */
+    SemaphoreHandle_t tx_sem;               /**< DMA发送完成信号量（仅异步模式） */
     drv_uart_ring_tx_ctrl_t *ring_tx_ctrl;  /**< 双缓冲控制（仅DUAL_BUF模式） */
     drv_uart_tx_irq_ctrl_t *tx_irq_ctrl;    /**< 中断发送控制（仅INTERRUPT模式） */
     drv_uart_context_t  context;            /**< 挂起现场 */
-    uint16_t        dma_rx_len;         /**< DMA接收数据长度 */
-    uint16_t        rx_write_index;     /**< rx_buf写指针（中断使用） */
-    uint16_t        rx_read_index;      /**< rx_buf读指针（应用层使用） */
-    uint8_t         rx_mode;            /**< 接收模式 */
-    uint8_t         irq_enabled;        /**< 中断使能标志 */
+    uint16_t        dma_rx_len;             /**< DMA接收数据长度 */
+    uint16_t        rx_write_index;         /**< rx_buf写指针（中断使用） */
+    uint16_t        rx_read_index;          /**< rx_buf读指针（应用层使用） */
+    uint8_t         rx_mode;                /**< 接收模式 */
+    uint8_t         irq_enabled;            /**< 中断使能标志 */
+    volatile bool  ringbuf_half_triggered;  /**< RingBuffer半满回调已触发标志（防止重复触发，中断和任务共享需临界区保护） */
 } drv_uart_ctrl_t;
 
 /*********************************************************************
@@ -192,10 +193,23 @@ static int _drv_uart_check_param(const drv_uart_config_t *config)
         return DRV_UART_ERR_FAILED;
     }
 
-    if (config->rx_buf == NULL || config->rx_buf_size == 0)
+    /* 接收缓冲区校验：使用 RingBuffer 时 rx_buf 可选，否则必须提供 */
+    if (config->use_ringbuf == false)
     {
-        DRV_UART_LOGE("Invalid UART RX buffer");
-        return DRV_UART_ERR_FAILED;
+        if (config->rx_buf == NULL || config->rx_buf_size == 0)
+        {
+            DRV_UART_LOGE("Invalid UART RX buffer (RingBuffer not enabled)");
+            return DRV_UART_ERR_FAILED;
+        }
+    }
+    else
+    {
+        /* RingBuffer 模式：ringbuf 指针必须有效 */
+        if (config->ringbuf == NULL)
+        {
+            DRV_UART_LOGE("Invalid RingBuffer pointer");
+            return DRV_UART_ERR_FAILED;
+        }
     }
 
     if (config->use_dma_rx == true)
@@ -203,15 +217,6 @@ static int _drv_uart_check_param(const drv_uart_config_t *config)
         if (config->dma_rx_buf == NULL || config->dma_rx_buf_size == 0)
         {
             DRV_UART_LOGE("Invalid DMA RX buffer");
-            return DRV_UART_ERR_FAILED;
-        }
-    }
-
-    if (config->use_ringbuf == true)
-    {
-        if (config->ringbuf == NULL)
-        {
-            DRV_UART_LOGE("Invalid RingBuffer pointer");
             return DRV_UART_ERR_FAILED;
         }
     }
@@ -2027,6 +2032,8 @@ int drv_uart_read(drv_uart_port_e port, uint8_t *data, uint16_t len)
 {
     drv_uart_ctrl_t *ctrl;
     int read_len = 0;
+    uint32_t ringbuf_used_size;
+    uint32_t ringbuf_threshold;
 
     /* 断言检查：参数合法性 */
     DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
@@ -2065,7 +2072,23 @@ int drv_uart_read(drv_uart_port_e port, uint8_t *data, uint16_t len)
             return DRV_UART_ERR_FAILED;
         }
 
-        read_len = ringbuf_read(ctrl->config.ringbuf, data, len);
+        read_len = my_rb_read(ctrl->config.ringbuf, data, len);
+
+        /* 读取数据后，如果之前已触发半满回调，现在检查是否可以复位标志 */
+        if (ctrl->ringbuf_half_triggered && read_len > 0)
+        {
+            ringbuf_used_size = my_rb_get_data_size(ctrl->config.ringbuf);
+            ringbuf_threshold = ctrl->config.ringbuf->size / 2;
+
+            /* 当使用量低于阈值的 50% 时，复位触发标志，允许下次再次触发 */
+            /* 临界区保护：防止与中断中的写操作竞争 */
+            if (ringbuf_used_size < ringbuf_threshold / 2)
+            {
+                taskENTER_CRITICAL();
+                ctrl->ringbuf_half_triggered = false;
+                taskEXIT_CRITICAL();
+            }
+        }
 
         DRV_UART_LOGD("UART port %d read %d bytes from RingBuffer", port, read_len);
     }
@@ -2370,7 +2393,7 @@ int drv_uart_get_rx_len(drv_uart_port_e port)
             return DRV_UART_ERR_FAILED;
         }
 
-        available_len = (uint16_t)ringbuf_get_data_size(ctrl->config.ringbuf);
+        available_len = (uint16_t)my_rb_get_data_size(ctrl->config.ringbuf);
     }
     else
     {
@@ -2407,6 +2430,8 @@ void drv_uart_irq_handler(drv_uart_port_e port)
     uint16_t dma_len = 0;
     uint32_t stat0;
     uint32_t int0;
+    uint32_t ringbuf_used_size;
+    uint32_t ringbuf_threshold;
 
     /* 断言检查：端口号必须合法 */
     DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
@@ -2440,7 +2465,20 @@ void drv_uart_irq_handler(drv_uart_port_e port)
         {
             case DRV_UART_RX_MODE_NODMA_RINGBUF:
                 /* 非DMA + RingBuffer模式 */
-                ringbuf_write(ctrl->config.ringbuf, &data, 1);
+                my_rb_write(ctrl->config.ringbuf, &data, 1);
+
+                /* 检查 RingBuffer 是否半满（触发应用层及时处理，仅触发一次） */
+                if (ctrl->config.rx_callback != NULL && !ctrl->ringbuf_half_triggered)
+                {
+                    ringbuf_used_size = my_rb_get_data_size(ctrl->config.ringbuf);
+                    ringbuf_threshold = ctrl->config.ringbuf->size / 2;  /* 半满阈值 */
+
+                    if (ringbuf_used_size >= ringbuf_threshold)
+                    {
+                        ctrl->ringbuf_half_triggered = true;  /* 标记已触发，防止重复 */
+                        ctrl->config.rx_callback(port, ringbuf_used_size);
+                    }
+                }
                 break;
 
             case DRV_UART_RX_MODE_NODMA_RXBUF:
@@ -2520,7 +2558,7 @@ void drv_uart_irq_handler(drv_uart_port_e port)
             {
                 if (dma_len > 0)
                 {
-                    ringbuf_write(ctrl->config.ringbuf, ctrl->config.dma_rx_buf, dma_len);
+                    my_rb_write(ctrl->config.ringbuf, ctrl->config.dma_rx_buf, dma_len);
                 }
             }
 
@@ -2557,7 +2595,7 @@ void drv_uart_irq_handler(drv_uart_port_e port)
             if (ctrl->config.use_ringbuf == true && ctrl->config.ringbuf != NULL)
             {
                 /* RingBuffer模式：查询当前数据量 */
-                dma_len = (uint16_t)ringbuf_get_data_size(ctrl->config.ringbuf);
+                dma_len = (uint16_t)my_rb_get_data_size(ctrl->config.ringbuf);
             }
             else
             {

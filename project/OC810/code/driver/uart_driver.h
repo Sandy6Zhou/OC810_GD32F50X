@@ -9,7 +9,7 @@
 *********************************************************************
 ** 功能描述：       1. 提供多UART独立管理接口
 **                 2. 支持5种TX发送模式（运行时独立配置）
-**                 3. 支持DMA接收、IDLE空闲中断、RingBuffer
+**                 3. 支持DMA接收、IDLE空闲中断、RingBuffer（含半满中断通知防溢出）
 **                 4. 支持低功耗挂起/恢复、线程安全
 **                 5. 驱动层与应用层完全解耦
 **                 6. 所有内存资源由应用层管理
@@ -23,7 +23,7 @@
 #include "gd32f50x.h"
 #include <stdint.h>
 #include <stdbool.h>
-#include "ringbuffer.h"
+#include "my_rb.h"
 #include "FreeRTOS.h"
 #include "semphr.h"
 
@@ -295,7 +295,7 @@ typedef struct {
     uint16_t      dma_rx_buf_size;          /**< 应用层指定的DMA接收缓冲区大小（启用DMA时>0） */
 
     /* RingBuffer相关（可选，仅use_ringbuf=true时生效） */
-    ringbuf_t     *ringbuf;                 /**< 应用层初始化完成的RingBuffer指针（启用时非空） */
+    my_rb_t       *ringbuf;                 /**< 应用层初始化完成的RingBuffer指针（启用时非空） */
 
     /* 功能开关（应用层自由选择，默认均为false） */
     bool          use_dma_rx;               /**< 是否启用DMA接收 */

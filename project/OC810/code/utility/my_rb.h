@@ -1,30 +1,47 @@
 /********************************************************************
 **版权所有：       深圳市几米物联有限公司
-**文件名称：       ringbuffer.c
-**文件描述：       环形缓冲区模块实现文件
+**文件名称：       my_rb.h
+**文件描述：       环形缓冲区模块接口定义
 **当前版本：       V1.0
 **作    者：       Harrison Wu (wuyujiao@jimiiot.com)
 **完成日期：       2026.04.21
 *********************************************************************
-** 功能描述：       1. 实现环形缓冲区的初始化、读写操作
-**                 2. 提供缓冲区状态查询和清空功能
-**                 3. 实现满、空、溢出保护机制
+** 功能描述：       1. 提供线程安全的环形缓冲区操作接口
+**                 2. 支持数据写入、读取、状态查询
+**                 3. 提供满、空、溢出保护机制
 *********************************************************************/
 
-#include "ringbuffer.h"
-#include <string.h>
+#ifndef __MY_RB_H__
+#define __MY_RB_H__
+
+#include <stdint.h>
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*********************************************************************
- * 内部辅助宏定义
+ * 数据结构定义
  *********************************************************************/
 
 /**
- * @brief 获取下一个位置（循环）
+ * @brief 环形缓冲区控制结构体
+ * @note  中断安全设计：
+ *        - head 仅在中断中修改（生产者）
+ *        - tail 仅在任务中修改（消费者）
+ *        - count 通过 head/tail 计算得出，避免竞争
+ *        - 无需 volatile：每个变量只有一个修改者
  */
-#define RINGBUF_NEXT_POS(rb, pos) (((pos) + 1) % (rb)->size)
+typedef struct {
+    uint8_t  *buf;         /**< 缓冲区数据指针（由应用层分配） */
+    uint32_t  size;        /**< 缓冲区总大小（字节） */
+    uint32_t  head;        /**< 写指针（指向下一个写入位置，仅中断修改） */
+    uint32_t  tail;        /**< 读指针（指向下一个读取位置，仅任务修改） */
+} my_rb_t;
 
 /*********************************************************************
- * 函数实现
+ * 接口函数声明
  *********************************************************************/
 
 /*********************************************************************
@@ -35,21 +52,7 @@
  * @return  0表示成功，-1表示失败（参数错误）
  * @note    应用层负责分配buf内存，驱动层仅使用
  *********************************************************************/
-int ringbuf_init(ringbuf_t *rb, uint8_t *buf, uint32_t size)
-{
-    if (rb == NULL || buf == NULL || size == 0)
-    {
-        return -1;
-    }
-
-    rb->buf = buf;
-    rb->size = size;
-    rb->head = 0;
-    rb->tail = 0;
-    rb->count = 0;
-
-    return 0;
-}
+int my_rb_init(my_rb_t *rb, uint8_t *buf, uint32_t size);
 
 /*********************************************************************
  * @brief   向环形缓冲区写入数据
@@ -59,34 +62,7 @@ int ringbuf_init(ringbuf_t *rb, uint8_t *buf, uint32_t size)
  * @return  实际写入的字节数，-1表示失败
  * @note    如果缓冲区空间不足，仅写入可容纳的部分
  *********************************************************************/
-int ringbuf_write(ringbuf_t *rb, const uint8_t *data, uint32_t len)
-{
-    uint32_t i;
-    uint32_t write_len;
-
-    if (rb == NULL || data == NULL || len == 0)
-    {
-        return -1;
-    }
-
-    /* 计算实际可写入的长度 */
-    write_len = (len < (rb->size - rb->count)) ? len : (rb->size - rb->count);
-
-    if (write_len == 0)
-    {
-        return 0; /* 缓冲区已满 */
-    }
-
-    for (i = 0; i < write_len; i++)
-    {
-        rb->buf[rb->head] = data[i];
-        rb->head = RINGBUF_NEXT_POS(rb, rb->head);
-    }
-
-    rb->count += write_len;
-
-    return (int)write_len;
-}
+int my_rb_write(my_rb_t *rb, const uint8_t *data, uint32_t len);
 
 /*********************************************************************
  * @brief   从环形缓冲区读取数据
@@ -96,34 +72,7 @@ int ringbuf_write(ringbuf_t *rb, const uint8_t *data, uint32_t len)
  * @return  实际读取的字节数，-1表示失败
  * @note    如果缓冲区数据不足，仅读取现有数据
  *********************************************************************/
-int ringbuf_read(ringbuf_t *rb, uint8_t *data, uint32_t len)
-{
-    uint32_t i;
-    uint32_t read_len;
-
-    if (rb == NULL || data == NULL || len == 0)
-    {
-        return -1;
-    }
-
-    /* 计算实际可读取的长度 */
-    read_len = (len < rb->count) ? len : rb->count;
-
-    if (read_len == 0)
-    {
-        return 0; /* 缓冲区为空 */
-    }
-
-    for (i = 0; i < read_len; i++)
-    {
-        data[i] = rb->buf[rb->tail];
-        rb->tail = RINGBUF_NEXT_POS(rb, rb->tail);
-    }
-
-    rb->count -= read_len;
-
-    return (int)read_len;
-}
+int my_rb_read(my_rb_t *rb, uint8_t *data, uint32_t len);
 
 /*********************************************************************
  * @brief   清空环形缓冲区
@@ -131,19 +80,7 @@ int ringbuf_read(ringbuf_t *rb, uint8_t *data, uint32_t len)
  * @return  0表示成功，-1表示失败
  * @note    无
  *********************************************************************/
-int ringbuf_clear(ringbuf_t *rb)
-{
-    if (rb == NULL)
-    {
-        return -1;
-    }
-
-    rb->head = 0;
-    rb->tail = 0;
-    rb->count = 0;
-
-    return 0;
-}
+int my_rb_clear(my_rb_t *rb);
 
 /*********************************************************************
  * @brief   获取环形缓冲区中剩余可写空间
@@ -151,15 +88,7 @@ int ringbuf_clear(ringbuf_t *rb)
  * @return  可写字节数，-1表示失败
  * @note    无
  *********************************************************************/
-int ringbuf_get_free_size(const ringbuf_t *rb)
-{
-    if (rb == NULL)
-    {
-        return -1;
-    }
-
-    return (int)(rb->size - rb->count);
-}
+int my_rb_get_free_size(const my_rb_t *rb);
 
 /*********************************************************************
  * @brief   获取环形缓冲区中已存数据量
@@ -167,15 +96,7 @@ int ringbuf_get_free_size(const ringbuf_t *rb)
  * @return  已存字节数，-1表示失败
  * @note    无
  *********************************************************************/
-int ringbuf_get_data_size(const ringbuf_t *rb)
-{
-    if (rb == NULL)
-    {
-        return -1;
-    }
-
-    return (int)rb->count;
-}
+int my_rb_get_data_size(const my_rb_t *rb);
 
 /*********************************************************************
  * @brief   判断环形缓冲区是否为空
@@ -183,15 +104,7 @@ int ringbuf_get_data_size(const ringbuf_t *rb)
  * @return  true表示空，false表示非空
  * @note    无
  *********************************************************************/
-bool ringbuf_is_empty(const ringbuf_t *rb)
-{
-    if (rb == NULL)
-    {
-        return true;
-    }
-
-    return (rb->count == 0);
-}
+bool my_rb_is_empty(const my_rb_t *rb);
 
 /*********************************************************************
  * @brief   判断环形缓冲区是否已满
@@ -199,12 +112,10 @@ bool ringbuf_is_empty(const ringbuf_t *rb)
  * @return  true表示满，false表示未满
  * @note    无
  *********************************************************************/
-bool ringbuf_is_full(const ringbuf_t *rb)
-{
-    if (rb == NULL)
-    {
-        return true;
-    }
+bool my_rb_is_full(const my_rb_t *rb);
 
-    return (rb->count == rb->size);
+#ifdef __cplusplus
 }
+#endif
+
+#endif /* __MY_RB_H__ */

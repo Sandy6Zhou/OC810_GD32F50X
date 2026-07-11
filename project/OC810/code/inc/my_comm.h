@@ -74,6 +74,15 @@ typedef enum
     /* MY_MAIN模块消息 */
     MY_MSG_ID_ONE_MINUTE,           /**< 1分钟定时器消息 */
 
+    /* MY_RTT_SHELL模块消息 */
+
+    /* MY_NT98XX模块消息 */
+    MY_MSG_ID_NT98XX_UART_ERROR,    /**< NT98XX UART错误 */
+    MY_MSG_ID_NT98XX_UART_TX_DONE,  /**< UART发送完成 */
+    MY_MSG_ID_NT98XX_UART_RX_RDY,   /**< NT98XX UART接收完成 */
+
+    MY_MSG_ID_NT98XX_UART_SEND,     /**< UART发送请求 */
+
     /* AMS/GNSS/CAN等模块消息按需扩展 */
 
     MY_MSG_ID_MAX                   /**< 消息ID最大值 */
@@ -177,7 +186,8 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
 #include "my_log.h"
 #include "my_safe_memory.h"
 #include "my_version.h"
-#include "ringbuffer.h"
+#include "my_rb.h"
+#include "my_tq.h"
 #include "param_manager.h"
 
 /*********************************************************************

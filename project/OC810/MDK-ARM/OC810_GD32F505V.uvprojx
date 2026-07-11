@@ -339,7 +339,7 @@
               <MiscControls>--include lfs_config.h</MiscControls>
               <Define>GD32F50X,GD32F50X_HD,GD32F505,USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\code\app;..\code\test;..\code\inc;..\code\log;..\code\memory;..\code\fs;..\code\driver;..\code\utility;..\code\os_abs;..\..\..\Library\Firmware\CMSIS;..\..\..\Library\Firmware\CMSIS\GD\GD32F50x\Include;..\..\..\Library\Firmware\GD32F50x_standard_peripheral\Include;..\..\..\Library\Utilities;..\..\..\Third_Party\FreeRTOSv10.3.1\FreeRTOS\Source\include;..\..\..\Third_Party\FreeRTOSv10.3.1\FreeRTOS\Source\portable\GCC\ARM_CM33_NTZ\non_secure;..\..\..\Third_Party\Segger_RTT\RTT\RTT;..\..\..\Third_Party\littlefs</IncludePath>
+              <IncludePath>..\code\app;..\code\test;..\code\inc;..\code\log;..\code\fs;..\code\driver;..\code\utility;..\..\..\Library\Firmware\CMSIS;..\..\..\Library\Firmware\CMSIS\GD\GD32F50x\Include;..\..\..\Library\Firmware\GD32F50x_standard_peripheral\Include;..\..\..\Library\Utilities;..\..\..\Third_Party\FreeRTOSv10.3.1\FreeRTOS\Source\include;..\..\..\Third_Party\FreeRTOSv10.3.1\FreeRTOS\Source\portable\GCC\ARM_CM33_NTZ\non_secure;..\..\..\Third_Party\Segger_RTT\RTT\RTT;..\..\..\Third_Party\littlefs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -452,16 +452,6 @@
               <FileName>system_gd32f50x.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\Library\Firmware\CMSIS\GD\GD32F50x\Source\system_gd32f50x.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>OS_ABS</GroupName>
-          <Files>
-            <File>
-              <FileName>my_os.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\os_abs\my_os.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -696,16 +686,6 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>MEMORY</GroupName>
-          <Files>
-            <File>
-              <FileName>my_safe_memory.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\memory\my_safe_memory.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
           <GroupName>LittleFS</GroupName>
           <Files>
             <File>
@@ -789,9 +769,24 @@
           <GroupName>Uitility</GroupName>
           <Files>
             <File>
-              <FileName>ringbuffer.c</FileName>
+              <FileName>my_os.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\utility\ringbuffer.c</FilePath>
+              <FilePath>..\code\utility\my_os.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_safe_memory.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\utility\my_safe_memory.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_tq.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\utility\my_tq.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_rb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\utility\my_rb.c</FilePath>
             </File>
           </Files>
         </Group>
