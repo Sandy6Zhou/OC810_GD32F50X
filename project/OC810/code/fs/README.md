@@ -108,7 +108,7 @@ lfs_port_deinit();
 
 1. **FLASH分区**
    - 调试模式：setting_storage 0x080C7000~0x080FAFFF (208KB, Bank1)
-   - 正式模式：setting_storage 0x0800C000~0x0803FFFF (208KB, Bank0零等待)
+   - 正式模式：setting_storage 0x0800C000~0x0803FFFF (208KB, Bank0, 前80KB零等待)
    - app/mcu_secondary 等大372KB，互为OTA镜像
    - factory_storage 20KB，bootconf 4KB
 
