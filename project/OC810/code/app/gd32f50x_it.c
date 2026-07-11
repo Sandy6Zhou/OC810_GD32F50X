@@ -69,24 +69,45 @@ void NMI_Handler(void)
     }
 }
 
+/* HardFault 诊断处理函数（由裸函数调用，传入正确的栈帧指针） */
+void hardfault_dump(uint32_t *sp_frame);
+
 /*!
-    \brief      this function handles HardFault exception
+    \brief      this function handles HardFault exception (naked wrapper)
     \param[in]  none
     \param[out] none
     \retval     none
+    \note        使用 naked 属性避免编译器压栈破坏 MSP，确保 sp_frame 指向真正的异常栈帧
 */
-void HardFault_Handler(void)
+__attribute__((naked)) void HardFault_Handler(void)
 {
-    /* 使用 CMSIS 标准 SCB 结构体访问故障寄存器（提高可移植性） */
-    uint32_t cfsr = SCB->CFSR;   /* Configurable Fault Status Register */
-    uint32_t hfsr = SCB->HFSR;   /* HardFault Status Register */
-    uint32_t mmfar = SCB->MMFAR; /* MemManage Fault Address Register */
-    uint32_t bfar = SCB->BFAR;   /* BusFault Address Register */
+    __asm volatile(
+        "TST LR, #4          \n"  /* 检查 LR.bit2 判断使用 MSP 还是 PSP */
+        "ITE EQ              \n"
+        "MRSEQ R0, MSP       \n"  /* R0 = MSP (异常栈帧起始) */
+        "MRSNE R0, PSP       \n"  /* R0 = PSP */
+        "B hardfault_dump    \n"  /* 跳转到 C 处理函数，R0 作为第一个参数 */
+    );
+}
+
+/*!
+    \brief      HardFault 诊断处理函数
+    \param[in]  sp_frame: 异常栈帧指针 (R0-R3, R12, LR, PC, xPSR)
+    \note        此时 sp_frame 指向 CPU 自动压栈的真正栈帧
+*/
+void hardfault_dump(uint32_t *sp_frame)
+{
+    /* 使用 CMSIS 标准 SCB 结构体访问故障寄存器 */
+    uint32_t cfsr = SCB->CFSR;
+    uint32_t hfsr = SCB->HFSR;
+    uint32_t mmfar = SCB->MMFAR;
+    uint32_t bfar = SCB->BFAR;
+    volatile uint32_t i;
 
     /* 无锁日志初始化（跳过互斥锁创建，仅初始化底层输出通道） */
     my_log_critical_init();
 
-    my_log_critical_print("===== HARDFAULT OCCURRED =====");
+    my_log_critical_print("===== APP HARDFAULT OCCURRED =====");
     my_log_critical_print("CFSR: 0x%08X", cfsr);
     my_log_critical_print("HFSR: 0x%08X", hfsr);
     my_log_critical_print("MMFAR: 0x%08X", mmfar);
@@ -123,6 +144,23 @@ void HardFault_Handler(void)
     if (hfsr & SCB_HFSR_VECTTBL_Msk)     my_log_critical_print("  -> VECTTBL: Vector table read error");
     if (hfsr & SCB_HFSR_FORCED_Msk)      my_log_critical_print("  -> FORCED: Forced hard fault (escalated)");
     if (hfsr & SCB_HFSR_DEBUGEVT_Msk)    my_log_critical_print("  -> DEBUGEVT: Debug event occurred");
+
+    /* 栈帧寄存器快照（sp_frame 指向真正的异常栈帧） */
+    my_log_critical_print("===== Stack Frame =====");
+    my_log_critical_print("R0  = 0x%08X", sp_frame[0]);
+    my_log_critical_print("R1  = 0x%08X", sp_frame[1]);
+    my_log_critical_print("R2  = 0x%08X", sp_frame[2]);
+    my_log_critical_print("R3  = 0x%08X", sp_frame[3]);
+    my_log_critical_print("R12 = 0x%08X", sp_frame[4]);
+    my_log_critical_print("LR  = 0x%08X", sp_frame[5]);
+    my_log_critical_print("PC  = 0x%08X", sp_frame[6]);
+    my_log_critical_print("xPSR= 0x%08X", sp_frame[7]);
+    my_log_critical_print("MSP = 0x%08X", __get_MSP());
+    my_log_critical_print("PSP = 0x%08X", __get_PSP());
+    my_log_critical_print("===== END =====");
+
+    /* 延时确保日志输出完成 */
+    for (i = 0U; i < 5000000U; i++) {}
 
     /* 进入死循环，等待看门狗溢出复位 */
     while (1) { }

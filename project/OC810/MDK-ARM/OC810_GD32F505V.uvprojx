@@ -52,7 +52,7 @@
           <OutputName>Project</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
-          <CreateHexFile>0</CreateHexFile>
+          <CreateHexFile>1</CreateHexFile>
           <DebugInformation>1</DebugInformation>
           <BrowseInformation>1</BrowseInformation>
           <ListingPath>.\list\</ListingPath>
@@ -466,7 +466,7 @@
             <File>
               <FileName>system_gd32f50x.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\Library\Firmware\CMSIS\GD\GD32F50x\Source\system_gd32f50x.c</FilePath>
+              <FilePath>..\code\app\system_gd32f50x.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -776,7 +776,7 @@
             <File>
               <FileName>startup_gd32f50x.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\Library\Firmware\CMSIS\GD\GD32F50x\Source\ARM\startup_gd32f50x.s</FilePath>
+              <FilePath>..\code\app\startup_gd32f50x.s</FilePath>
             </File>
           </Files>
         </Group>

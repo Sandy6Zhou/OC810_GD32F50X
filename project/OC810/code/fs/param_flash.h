@@ -150,7 +150,7 @@
 #else
     #define PARAM_PARTITION_APP_BASE    0x08040000UL    /**< 正式: mcuboot之后 */
 #endif
-#define PARAM_PARTITION_APP_SIZE    (372 * 1024UL)      /**< 始终372KB */
+#define PARAM_PARTITION_APP_SIZE    (376 * 1024UL)      /**< 始终376KB */
 
 /* === Bank1 / 跨Bank分区 === */
 
@@ -160,16 +160,16 @@
 #if PARAM_DEBUG_MODE
     #define PARAM_PARTITION_MCU_SEC_BASE    0x080C7000UL  /**< 调试: 与setting_storage重叠 */
 #else
-    #define PARAM_PARTITION_MCU_SEC_BASE    0x0809D000UL  /**< 正式: app之后 */
+    #define PARAM_PARTITION_MCU_SEC_BASE    0x0809E000UL  /**< 正式: app之后 */
 #endif
-#define PARAM_PARTITION_MCU_SEC_SIZE    (372 * 1024UL)
+#define PARAM_PARTITION_MCU_SEC_SIZE    (376 * 1024UL)
 
 /* factory_storage: 工厂参数/IMEI/MAC（20KB） */
 #define PARAM_PARTITION_FACTORY_BASE    0x080FB000UL
-#define PARAM_PARTITION_FACTORY_SIZE    (20 * 1024UL)
+#define PARAM_PARTITION_FACTORY_SIZE    (12 * 1024UL)
 
 /* bootconf: 启动配置/OTA标志（4KB） */
-#define PARAM_PARTITION_BOOTCONF_BASE   0x080FF000UL
+#define PARAM_PARTITION_BOOTCONF_BASE   0x080FE000UL
 #define PARAM_PARTITION_BOOTCONF_SIZE   (4 * 1024UL)
 
 /*******************************************************************************

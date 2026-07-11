@@ -52,12 +52,14 @@ OF SUCH DAMAGE.
 //#define __SYSTEM_CLOCK_220M_PLL_IRC8M           (uint32_t)(220000000)
 //#define __SYSTEM_CLOCK_220M_PLL_HXTAL           (uint32_t)(220000000)
 //#define __SYSTEM_CLOCK_252M_PLL_IRC8M           (uint32_t)(252000000)
-#define __SYSTEM_CLOCK_252M_PLL_HXTAL           (uint32_t)(252000000)
+//#define __SYSTEM_CLOCK_252M_PLL_HXTAL           (uint32_t)(252000000)
 #endif /* GD32F503 || GD32F505 */
 
 #if (defined(GD32F505))
-//#define __SYSTEM_CLOCK_280M_PLL_IRC8M           (uint32_t)(280000000)
-//#define __SYSTEM_CLOCK_280M_PLL_HXTAL           (uint32_t)(280000000)
+//#define __SYSTEM_CLOCK_280M_PLL_IRC8M           (uint32_t)(280000000)  /* 使用IRC8M+PLL到280MHz */
+//#define __SYSTEM_CLOCK_280M_PLL_HXTAL           (uint32_t)(280000000)  /* 使用25MHz HXTAL+PLL到275MHz */
+#define __SYSTEM_CLOCK_120M_PLL_HXTAL           (uint32_t)(120000000)  /* 使用25MHz HXTAL+PLL到120MHz */
+//#define __SYSTEM_CLOCK_IRC8M                    (uint32_t)(__IRC8M)  /* 临时使用内部RC验证 */
 #endif /* GD32F505 */
 
 /* The following is to prevent Vcore fluctuations caused by frequency switching.
@@ -147,6 +149,9 @@ static void system_clock_252m_hxtal(void);
 #elif defined (__SYSTEM_CLOCK_280M_PLL_HXTAL)
 uint32_t SystemCoreClock = __SYSTEM_CLOCK_280M_PLL_HXTAL;
 static void system_clock_280m_hxtal(void);
+#elif defined (__SYSTEM_CLOCK_120M_PLL_HXTAL)
+uint32_t SystemCoreClock = __SYSTEM_CLOCK_120M_PLL_HXTAL;
+static void system_clock_120m_hxtal(void);
 #endif /* __SYSTEM_CLOCK_IRC8M */
 
 /* configure the system clock */
@@ -266,6 +271,8 @@ static void system_clock_config(void)
     system_clock_252m_hxtal();
 #elif defined (__SYSTEM_CLOCK_280M_PLL_HXTAL)
     system_clock_280m_hxtal();
+#elif defined (__SYSTEM_CLOCK_120M_PLL_HXTAL)
+    system_clock_120m_hxtal();
 #endif /* __SYSTEM_CLOCK_IRC8M */
 }
 
@@ -922,11 +929,83 @@ static void system_clock_280m_hxtal(void)
     /* APB1 = AHB/2 */
     RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
 
-    /* CK_PLL0P = (HXTAL)/1 * 35 = 280 MHz */
+    /* CK_PLL0P = (HXTAL)/1 * 11 = 275 MHz (25MHz × 11) */
     RCU_CFG1 &= ~(RCU_CFG1_PLL0SEL | RCU_CFG1_PREDIV0 | RCU_CFG1_PREDIV1);
     RCU_CFG1 |= (RCU_PLL0SRC_HXTAL  |  RCU_PREDIV0_DIV1);
     RCU_CFG0 &= ~(RCU_CFG0_PLL0MF_0_3 | RCU_CFG0_PLL0MF_4_5);
-    RCU_CFG0 |= RCU_PLL0_MUL35;
+    RCU_CFG0 |= RCU_PLL0_MUL11;  /* 修改为11倍频（25×11=275MHz） */
+
+    /* enable PLL0 */
+    RCU_CTL |= RCU_CTL_PLL0EN;
+
+    /* wait until PLL0 is stable */
+    while(0U == (RCU_CTL & RCU_CTL_PLL0STB)) {
+    }
+
+    /* select FMC clock is CK_AHB and div is 1 */
+    RCU_ADDCTL &= ~(RCU_ADDCTL_FMCSEL | RCU_ADDCTL_FMCDIV);
+    RCU_ADDCTL |=  RCU_FMC_CK_AHB | RCU_FMC_DIV1;
+
+    reg_temp = RCU_CFG0;
+    /* select PLL0P as system clock */
+    reg_temp &= ~RCU_CFG0_SCS;
+    reg_temp |= RCU_CKSYSSRC_PLL0P;
+    RCU_CFG0 = reg_temp;
+
+    /* wait until PLL0 is selected as system clock */
+    while(RCU_SCSS_PLL0P != (RCU_CFG0 & RCU_CFG0_SCSS)) {
+    }
+
+    /* modify AHB clcok to SYSCLK */
+    RCU_MODIFY_UP_2(0x50U);
+}
+
+#elif defined (__SYSTEM_CLOCK_120M_PLL_HXTAL)
+/*!
+    \brief      configure the system clock to 120M by PLL0 which selects HXTAL(25M) as its clock source
+    \param[in]  none
+    \param[out] none
+    \retval     none
+    \note       This function contains scenarios leading to an infinite loop.
+                Modify according to the user's actual usage scenarios.
+*/
+static void system_clock_120m_hxtal(void)
+{
+    uint32_t timeout = 0U;
+    uint32_t stab_flag = 0U;
+    __IO uint32_t reg_temp;
+
+    /* enable HXTAL */
+    RCU_CTL |= RCU_CTL_HXTALEN;
+
+    /* wait until HXTAL is stable or the startup time is longer than HXTAL_STARTUP_TIMEOUT */
+    do {
+        timeout++;
+        stab_flag = (RCU_CTL & RCU_CTL_HXTALSTB);
+    } while((0U == stab_flag) && (HXTAL_STARTUP_TIMEOUT != timeout));
+
+    /* if fail */
+    if(0U == (RCU_CTL & RCU_CTL_HXTALSTB)) {
+        while(1) {
+        }
+    }
+
+    RCU_APB1EN |= RCU_APB1EN_PMUEN;
+    PMU_CTL0 |= PMU_CTL0_LDOVS;
+
+    /* HXTAL is stable */
+    /* AHB = SYSCLK/2. AHB clock will be modified to SYSCLK after frequency switching finished to prevent Vcore fluctuations */
+    RCU_CFG0 |= RCU_AHB_CKSYS_DIV2;
+    /* APB2 = AHB/1 */
+    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
+    /* APB1 = AHB/2 */
+    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
+
+    /* CK_PLL0P = (HXTAL/5) * 24 = 120 MHz (25MHz/5*24) */
+    RCU_CFG1 &= ~(RCU_CFG1_PLL0SEL | RCU_CFG1_PREDIV0 | RCU_CFG1_PREDIV1);
+    RCU_CFG1 |= (RCU_PLL0SRC_HXTAL | RCU_PREDIV0_DIV5);
+    RCU_CFG0 &= ~(RCU_CFG0_PLL0MF_0_3 | RCU_CFG0_PLL0MF_4_5);
+    RCU_CFG0 |= RCU_PLL0_MUL24;
 
     /* enable PLL0 */
     RCU_CTL |= RCU_CTL_PLL0EN;

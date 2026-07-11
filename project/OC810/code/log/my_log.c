@@ -181,7 +181,7 @@ void my_log_dump(const char *tag, const void *data, uint32_t len)
         return;
     }
 
-    if (MY_LOG_CURRENT_LEVEL > MY_LOG_LEVEL_DEBUG)
+    if (MY_LOG_CURRENT_LEVEL < MY_LOG_LEVEL_INFO)
     {
         return;
     }
@@ -209,7 +209,7 @@ void my_log_dump(const char *tag, const void *data, uint32_t len)
         int line_len = 0;
 
         /* 打印偏移量 */
-        line_len = snprintf(sLogDumpBuffer, sizeof(sLogDumpBuffer), "%04d: ", offset);
+        line_len = snprintf(sLogDumpBuffer, sizeof(sLogDumpBuffer), "%04X: ", offset);
 
         /* 打印Hex */
         for (uint32_t i = 0; i < 16 && offset + i < len; i++)
