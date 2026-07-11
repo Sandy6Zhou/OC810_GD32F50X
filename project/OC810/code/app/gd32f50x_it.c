@@ -851,17 +851,13 @@ void CAN0_RX0_IRQHandler(void)
     drv_can_frame_t frame;
 
     /* 检查FIFO0非空中断标志 */
-    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_RFNE0))
+    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_RFL0))
     {
-        /* 读取消息 */
-        if (drv_can_receive(DRV_CAN_PORT_CAN0, &frame, 0) == DRV_CAN_ERR_OK)
+        /* 读取消息（使用无锁版本，避免ISR中死锁） */
+        if (_drv_can_receive_no_lock(DRV_CAN_PORT_CAN0, &frame, 0) == DRV_CAN_ERR_OK)
         {
             /* 执行接收回调 */
-            extern int drv_can_register_rx_callback(drv_can_port_e port, void (*callback)(drv_can_port_e, drv_can_frame_t *, uint8_t));
-            if (s_can_ctrl[DRV_CAN_PORT_CAN0].rx_callback != NULL)
-            {
-                s_can_ctrl[DRV_CAN_PORT_CAN0].rx_callback(DRV_CAN_PORT_CAN0, &frame, 0);
-            }
+            drv_can_run_rx_callback(DRV_CAN_PORT_CAN0, &frame, 0);
         }
     }
 }
@@ -875,16 +871,13 @@ void CAN0_RX1_IRQHandler(void)
     drv_can_frame_t frame;
 
     /* 检查FIFO1非空中断标志 */
-    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_RFNE1))
+    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_RFL1))
     {
-        /* 读取消息 */
-        if (drv_can_receive(DRV_CAN_PORT_CAN0, &frame, 1) == DRV_CAN_ERR_OK)
+        /* 读取消息（使用无锁版本，避免ISR中死锁） */
+        if (_drv_can_receive_no_lock(DRV_CAN_PORT_CAN0, &frame, 1) == DRV_CAN_ERR_OK)
         {
             /* 执行接收回调 */
-            if (s_can_ctrl[DRV_CAN_PORT_CAN0].rx_callback != NULL)
-            {
-                s_can_ctrl[DRV_CAN_PORT_CAN0].rx_callback(DRV_CAN_PORT_CAN0, &frame, 1);
-            }
+            drv_can_run_rx_callback(DRV_CAN_PORT_CAN0, &frame, 1);
         }
     }
 }
@@ -900,13 +893,10 @@ void CAN0_TX_IRQHandler(void)
     /* 检查3个发送邮箱 */
     for (mailbox = 0; mailbox < 3; mailbox++)
     {
-        if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_TME0 + mailbox))
+        if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_MTF0 + mailbox))
         {
             /* 执行发送完成回调 */
-            if (s_can_ctrl[DRV_CAN_PORT_CAN0].tx_callback != NULL)
-            {
-                s_can_ctrl[DRV_CAN_PORT_CAN0].tx_callback(DRV_CAN_PORT_CAN0, mailbox);
-            }
+            drv_can_run_tx_callback(DRV_CAN_PORT_CAN0, mailbox);
         }
     }
 }
@@ -920,36 +910,31 @@ void CAN0_EWMC_IRQHandler(void)
     drv_can_err_type_e err_type = DRV_CAN_ERR_TYPE_NONE;
 
     /* 检查错误中断标志 */
-    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_ERR))
+    if (SET == can_interrupt_flag_get(CAN0, CAN_INT_FLAG_ERRIF))
     {
         /* 判断错误类型 */
         if (SET == can_flag_get(CAN0, CAN_FLAG_BOERR))
         {
             /* 总线关闭错误 */
-            s_can_ctrl[DRV_CAN_PORT_CAN0].state = DRV_CAN_STATE_BUS_OFF;
-            err_type = DRV_CAN_ERR_TYPE_BIT;
+            err_type = DRV_CAN_ERR_TYPE_BIT;  /* BOERR表示Bus Off，归类为位错误 */
         }
         else if (SET == can_flag_get(CAN0, CAN_FLAG_PERR))
         {
-            err_type = DRV_CAN_ERR_TYPE_STUFF;
+            err_type = DRV_CAN_ERR_TYPE_ACK;  /* PERR表示Error Passive，通常是ACK错误导致 */
         }
-        else if (SET == can_flag_get(CAN0, CAN_FLAG_FERR))
+        else if (SET == can_flag_get(CAN0, CAN_FLAG_WERR))
         {
-            err_type = DRV_CAN_ERR_TYPE_FORM;
-        }
-        else if (SET == can_flag_get(CAN0, CAN_FLAG_NERR))
-        {
-            err_type = DRV_CAN_ERR_TYPE_BIT;
+            err_type = DRV_CAN_ERR_TYPE_STUFF;  /* WERR表示Warning，通常是填充错误早期预警 */
         }
 
         /* 执行错误回调 */
-        if (s_can_ctrl[DRV_CAN_PORT_CAN0].err_callback != NULL && err_type != DRV_CAN_ERR_TYPE_NONE)
+        if (err_type != DRV_CAN_ERR_TYPE_NONE)
         {
-            s_can_ctrl[DRV_CAN_PORT_CAN0].err_callback(DRV_CAN_PORT_CAN0, err_type);
+            drv_can_run_err_callback(DRV_CAN_PORT_CAN0, err_type);
         }
 
         /* 清除错误标志 */
-        can_flag_clear(CAN0, CAN_FLAG_BOERR | CAN_FLAG_PERR | CAN_FLAG_FERR | CAN_FLAG_NERR);
+        can_flag_clear(CAN0, CAN_FLAG_BOERR | CAN_FLAG_PERR | CAN_FLAG_WERR);
     }
 }
 
@@ -962,16 +947,13 @@ void CAN1_RX0_IRQHandler(void)
     drv_can_frame_t frame;
 
     /* 检查FIFO0非空中断标志 */
-    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_RFNE0))
+    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_RFL0))
     {
-        /* 读取消息 */
-        if (drv_can_receive(DRV_CAN_PORT_CAN1, &frame, 0) == DRV_CAN_ERR_OK)
+        /* 读取消息（使用无锁版本，避免ISR中死锁） */
+        if (_drv_can_receive_no_lock(DRV_CAN_PORT_CAN1, &frame, 0) == DRV_CAN_ERR_OK)
         {
             /* 执行接收回调 */
-            if (s_can_ctrl[DRV_CAN_PORT_CAN1].rx_callback != NULL)
-            {
-                s_can_ctrl[DRV_CAN_PORT_CAN1].rx_callback(DRV_CAN_PORT_CAN1, &frame, 0);
-            }
+            drv_can_run_rx_callback(DRV_CAN_PORT_CAN1, &frame, 0);
         }
     }
 }
@@ -985,16 +967,13 @@ void CAN1_RX1_IRQHandler(void)
     drv_can_frame_t frame;
 
     /* 检查FIFO1非空中断标志 */
-    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_RFNE1))
+    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_RFL1))
     {
-        /* 读取消息 */
-        if (drv_can_receive(DRV_CAN_PORT_CAN1, &frame, 1) == DRV_CAN_ERR_OK)
+        /* 读取消息（使用无锁版本，避免ISR中死锁） */
+        if (_drv_can_receive_no_lock(DRV_CAN_PORT_CAN1, &frame, 1) == DRV_CAN_ERR_OK)
         {
             /* 执行接收回调 */
-            if (s_can_ctrl[DRV_CAN_PORT_CAN1].rx_callback != NULL)
-            {
-                s_can_ctrl[DRV_CAN_PORT_CAN1].rx_callback(DRV_CAN_PORT_CAN1, &frame, 1);
-            }
+            drv_can_run_rx_callback(DRV_CAN_PORT_CAN1, &frame, 1);
         }
     }
 }
@@ -1010,13 +989,10 @@ void CAN1_TX_IRQHandler(void)
     /* 检查3个发送邮箱 */
     for (mailbox = 0; mailbox < 3; mailbox++)
     {
-        if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_TME0 + mailbox))
+        if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_MTF0 + mailbox))
         {
             /* 执行发送完成回调 */
-            if (s_can_ctrl[DRV_CAN_PORT_CAN1].tx_callback != NULL)
-            {
-                s_can_ctrl[DRV_CAN_PORT_CAN1].tx_callback(DRV_CAN_PORT_CAN1, mailbox);
-            }
+            drv_can_run_tx_callback(DRV_CAN_PORT_CAN1, mailbox);
         }
     }
 }
@@ -1030,35 +1006,30 @@ void CAN1_EWMC_IRQHandler(void)
     drv_can_err_type_e err_type = DRV_CAN_ERR_TYPE_NONE;
 
     /* 检查错误中断标志 */
-    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_ERR))
+    if (SET == can_interrupt_flag_get(CAN1, CAN_INT_FLAG_ERRIF))
     {
         /* 判断错误类型 */
         if (SET == can_flag_get(CAN1, CAN_FLAG_BOERR))
         {
             /* 总线关闭错误 */
-            s_can_ctrl[DRV_CAN_PORT_CAN1].state = DRV_CAN_STATE_BUS_OFF;
-            err_type = DRV_CAN_ERR_TYPE_BIT;
+            err_type = DRV_CAN_ERR_TYPE_BIT;  /* BOERR表示Bus Off，归类为位错误 */
         }
         else if (SET == can_flag_get(CAN1, CAN_FLAG_PERR))
         {
-            err_type = DRV_CAN_ERR_TYPE_STUFF;
+            err_type = DRV_CAN_ERR_TYPE_ACK;  /* PERR表示Error Passive，通常是ACK错误导致 */
         }
-        else if (SET == can_flag_get(CAN1, CAN_FLAG_FERR))
+        else if (SET == can_flag_get(CAN1, CAN_FLAG_WERR))
         {
-            err_type = DRV_CAN_ERR_TYPE_FORM;
-        }
-        else if (SET == can_flag_get(CAN1, CAN_FLAG_NERR))
-        {
-            err_type = DRV_CAN_ERR_TYPE_BIT;
+            err_type = DRV_CAN_ERR_TYPE_STUFF;  /* WERR表示Warning，通常是填充错误早期预警 */
         }
 
         /* 执行错误回调 */
-        if (s_can_ctrl[DRV_CAN_PORT_CAN1].err_callback != NULL && err_type != DRV_CAN_ERR_TYPE_NONE)
+        if (err_type != DRV_CAN_ERR_TYPE_NONE)
         {
-            s_can_ctrl[DRV_CAN_PORT_CAN1].err_callback(DRV_CAN_PORT_CAN1, err_type);
+            drv_can_run_err_callback(DRV_CAN_PORT_CAN1, err_type);
         }
 
         /* 清除错误标志 */
-        can_flag_clear(CAN1, CAN_FLAG_BOERR | CAN_FLAG_PERR | CAN_FLAG_FERR | CAN_FLAG_NERR);
+        can_flag_clear(CAN1, CAN_FLAG_BOERR | CAN_FLAG_PERR | CAN_FLAG_WERR);
     }
 }
