@@ -788,6 +788,11 @@
               <FileType>1</FileType>
               <FilePath>..\code\utility\my_rb.c</FilePath>
             </File>
+            <File>
+              <FileName>my_tool.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\utility\my_tool.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
