@@ -39,6 +39,7 @@ OF SUCH DAMAGE.
 #include "timer_driver.h"
 #include "dma_driver.h"
 #include "uart_driver.h"
+#include "adc_driver.h"
 
 #define SRAM_ECC_ERROR_HANDLE(s)    do{}while(1)
 
@@ -647,4 +648,34 @@ void UART3_IRQHandler(void)
 void UART4_IRQHandler(void)
 {
     drv_uart_irq_handler(DRV_UART_PORT_UART4);
+}
+
+/*********************************************************************
+ * ADC 中断服务函数
+ *
+ * 设计说明：
+ *   1. ADC0/1共享ADC0_1_IRQn中断
+ *   2. ADC2独立ADC2_IRQn中断
+ *   3. ISR调用drv_adc_irq_handler()统一处理
+ *   4. 仅处理看门狗（AWD）中断，用于低功耗唤醒
+ *   5. EOC/EIC中断不使用，避免频繁中断影响系统性能
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief   ADC0/1 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void ADC0_1_IRQHandler(void)
+{
+    drv_adc_irq_handler(DRV_ADC0);
+    drv_adc_irq_handler(DRV_ADC1);
+}
+
+/*********************************************************************
+ * @brief   ADC2 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void ADC2_IRQHandler(void)
+{
+    drv_adc_irq_handler(DRV_ADC2);
 }

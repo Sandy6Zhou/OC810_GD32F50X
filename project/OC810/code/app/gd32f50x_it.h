@@ -90,4 +90,8 @@ void USART2_IRQHandler(void);
 void UART3_IRQHandler(void);
 void UART4_IRQHandler(void);
 
+/* ADC intterrupt handlers */
+void ADC0_1_IRQHandler(void);
+void ADC2_IRQHandler(void);
+
 #endif /* GD32F50X_IT_H */
