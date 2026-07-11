@@ -60,9 +60,12 @@ mDVR_MCU/
 └── project/
     └── OC810/               ← OC810项目
         ├── code/
-        │   ├── system/      ← 系统核心代码
+        │   ├── app/         ← 应用层代码（含gd32f50x_it中断服务）
+        │   ├── driver/      ← 驱动层代码
+        │   ├── inc/         ← 公共头文件
         │   ├── log/         ← 日志模块
-        │   └── memory/      ← 内存管理模块
+        │   ├── fs/          ← 文件系统模块
+        │   └── utility/     ← 通用工具（my_os/my_safe_memory/my_rb/my_tq）
         └── MDK-ARM/         ← Keil工程
 ```
 
@@ -272,11 +275,14 @@ IRAM1:
 GD32F50X,GD32F50X_HD,GD32F505,USE_STDPERIPH_DRIVER
 ```
 
-**Include Paths**:
+Include Paths:
 ```
-..\code\system
+..\code\app
+..\code\driver
+..\code\inc
 ..\code\log
-..\code\memory
+..\code\fs
+..\code\utility
 ..\..\..\Library\Firmware\CMSIS
 ..\..\..\Library\Firmware\CMSIS\GD\GD32F50x\Include
 ..\..\..\Library\Firmware\GD32F50x_standard_peripheral\Include

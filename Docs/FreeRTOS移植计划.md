@@ -21,8 +21,8 @@
 - 使用Cortex-M33端口层: `GCC/ARM_CM33_NTZ/non_secure/`
 
 ### ✅ 第二阶段: 创建基础工程文件
-- 创建 `project/OC810/code/system/` 目录
-- 复制并修改: main.c, gd32f50x_it.c/h, gd32f50x_libopt.h
+- 创建 `project/OC810/code/app/` 目录
+- 复制并修改: main.c, gd32f50x_it.c/h, gd32f50x_libopt.h（gd32f50x_libopt.h移至inc/）
 
 ### ✅ 第三阶段: 配置FreeRTOSConfig.h
 - configCPU_CLOCK_HZ = SystemCoreClock (280MHz)
@@ -49,7 +49,7 @@
 
 ### ✅ 第八阶段: 添加内存管理模块
 - 安全内存分配接口
-- 目录: `project/OC810/code/memory/`
+- 目录: `project/OC810/code/utility/`（与my_os、my_rb、my_tq统一管理）
 
 ---
 
@@ -65,9 +65,12 @@ mDVR_MCU/
 └── project/
     └── OC810/                        ← OC810项目
         ├── code/
-        │   ├── system/               ← 系统核心代码
+        │   ├── app/                  ← 应用层代码（含gd32f50x_it中断服务）
+        │   ├── driver/               ← 驱动层代码
+        │   ├── inc/                  ← 公共头文件
         │   ├── log/                  ← 日志模块
-        │   └── memory/               ← 内存管理模块
+        │   ├── fs/                   ← 文件系统模块
+        │   └── utility/              ← 通用工具（my_os/my_safe_memory/my_rb/my_tq）
         └── MDK-ARM/                  ← Keil工程
 ```
 

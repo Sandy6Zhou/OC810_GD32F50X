@@ -16,7 +16,7 @@
 ### 1.3 文件位置
 
 ```
-project/OC810/code/os_abs/
+project/OC810/code/utility/
 ├── my_os.h    # OS抽象层头文件（接口声明）
 └── my_os.c    # OS抽象层实现文件
 ```
@@ -895,7 +895,7 @@ if (free_heap < 1024) {
 
 确保 Keil 项目中已添加 include 路径：
 ```
-..\code\os_abs
+..\code\utility
 ```
 
 ### 5.2 初始化流程
@@ -1181,7 +1181,7 @@ void EXTI_IRQHandler(void)
 | V1.3 | 2026.06.05 | 新增事件组(Event Group)接口；新增任务通知(Task Notification)接口；新增任务状态查询/栈水位/名称接口；新增内存管理接口；新增调度器挂起/恢复；新增my_msg_queue_get_spaces/my_os_get_task_count/my_task_resume_from_isr/my_ticks_to_ms；消息ID/定时器ID迁移到my_comm.h；my_msg_t字段简化为id/data/len |
 | V1.2 | 2026.05.07 | 封装FreeRTOS基础类型为my_前缀类型（my_base_type_t/my_ubase_type_t/my_tick_type_t）；更新临界区宏命名 |
 | V1.1 | 2026.05.07 | 添加my_sem_take_from_isr中断安全API；完善定时器中断安全API；修正回调示例 |
-| V1.0 | 2026.05.06 | 初始版本，创建 os_abs 目录，迁移 my_common 为 my_os |
+| V1.3 | 2026.06.20 | 目录结构精简：my_os从os_abs/迁移至utility/统一管理（头文件引用路径变更为..\code\utility） |
 
 ---
 

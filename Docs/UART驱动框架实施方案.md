@@ -10,6 +10,7 @@
 | V1.3 | 2026.05.12 | 伍玉蛟 | 重构为运行时TX模式配置、API标准化、全面优化注释 |
 | V1.4 | 2026.05.13 | 伍玉蛟 | 增加TXE中断发送模式（UART_TX_MODE_INTERRUPT），无需DMA通道 |
 | V1.5 | 2026.05.20 | 伍玉蛟 | 增加GPIO配置宏表、NO_USE选项、编译期/运行时双重检查 |
+| V1.6 | 2026.06.20 | 伍玉蛟 | RingBuffer更名为my_rb_t，SPSC无锁设计，目录结构精简 |
 
 ---
 
@@ -105,7 +106,8 @@ project/OC810/code/
 │   ├── uart_driver.c      # 驱动实现
 │   └── uart_driver.h      # 接口定义（含GPIO配置宏表）
 ├── utility/
-│   └── ringbuffer.c/h     # 环形缓冲区工具
+│   ├── my_rb.c/h          # 环形缓冲区（SPSC无锁设计）
+│   └── my_tq.c/h          # 异步发送队列（动态内存）
 ├── log/
 │   └── my_log.c/h         # 日志系统
 └── app/
@@ -166,13 +168,13 @@ if (ret != DRV_UART_ERR_OK) {
 
 ```c
 #include "uart_driver.h"
-#include "ringbuffer.h"
+#include "my_rb.h"
 
 // 1. 应用层分配内存（必须为全局或静态变量）
 static uint8_t rx_buf[256];
 static uint8_t dma_rx_buf[256];
 static uint8_t ringbuf_data[512];
-static ringbuf_t ringbuf;
+static my_rb_t ringbuf;
 
 // 2. 接收回调（中断上下文，必须快速执行）
 static void rx_callback(drv_uart_port_e port, uint16_t len)
@@ -383,7 +385,7 @@ typedef struct {
     uint16_t          dma_rx_buf_size;  // DMA接收缓冲区大小
 
     // 【可选】RingBuffer（use_ringbuf=true时需要）
-    ringbuf_t         *ringbuf;         // RingBuffer指针（需提前初始化）
+    my_rb_t           *ringbuf;         // RingBuffer指针（需提前初始化）
 
     // 【可选】功能开关
     bool              use_dma_rx;       // 启用DMA接收
@@ -732,3 +734,5 @@ main_uart_all_test.c  # 5个端口混合TX模式测试
 ✅ **工业级可靠性**（错误检测、回调上报、断言机制）
 ✅ **GPIO配置宏表**（V1.5新增：编译期选择引脚，NO_USE节省代码空间）
 ✅ **双重检查机制**（V1.5新增：编译期#error + 运行时错误返回）
+✅ **RingBuffer SPSC无锁设计**（V1.6更新：移除count字段，中断安全，无需volatile）
+✅ **目录结构精简**（V1.6更新：my_os/my_safe_memory/my_rb统一归入utility/）

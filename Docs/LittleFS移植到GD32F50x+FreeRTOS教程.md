@@ -554,7 +554,7 @@ OC810_GD32F50X/
 │   │   │   ├── rtt_logger.h/c       #   RTT 日志通道
 │   │   │   └── uart_logger.h/c      #   UART 日志通道
 │   │   │
-│   │   ├── memory/                  # 安全内存管理（被 lfs_config.h 引用）
+│   │   ├── utility/                 # 通用工具模块（被 lfs_config.h 引用）
 │   │   │   ├── my_safe_memory.h     #   内存管理接口
 │   │   │   └── my_safe_memory.c     #   基于 FreeRTOS 堆的安全封装
 │   │   │
@@ -609,7 +609,7 @@ lfs_port.c           ← Block Device 回调 + 挂载管理
 
 | 配置项 | 值 |
 |---|---|
-| **Include Path** | `code/fs`, `code/log`, `code/memory`, `Third_Party/littlefs`, ... |
+| **Include Path** | `code/app`, `code/driver`, `code/inc`, `code/fs`, `code/log`, `code/utility`, `Third_Party/littlefs`, ... |
 | **Define** | `GD32F50X,GD32F50X_HD,GD32F505,USE_STDPERIPH_DRIVER` |
 | **MiscControls** | `--include lfs_config.h`（ARMCLANG 强制包含） |
 
