@@ -7,7 +7,7 @@
 **完成日期：       2026.04.17
 *********************************************************************
 ** 功能描述：       1. 提供统一的内存分配、释放和检查机制
-**                 2. 分配失败时自动输出错误日志并返回
+**                 2. 分配失败时自动输出错误日志
 **                 3. 防止Double Free和空指针访问
 **                 4. 提供内存健康监控接口
 *********************************************************************/
@@ -23,39 +23,13 @@ extern "C" {
 #include "task.h"
 #include "my_log.h"
 
-/* 内存分配失败时的返回值 */
-#define MY_MEM_ALLOC_FAILED    NULL
-
-/* 安全内存分配宏：失败时输出错误日志并返回 */
-#define MY_SAFE_MALLOC(ptr, size, ret_val) \
+/* 安全内存分配宏：分配失败时输出错误日志，调用方自行检查 ptr 是否为 NULL */
+#define MY_SAFE_MALLOC(ptr, size) \
     do { \
         (ptr) = pvPortMalloc(size); \
         if ((ptr) == NULL) \
         { \
-            MY_LOG_E("Alloc failed: %d bytes", (size)); \
-            return (ret_val); \
-        } \
-    } while (0)
-
-/* 安全内存分配宏（goto版）：失败时输出错误日志并跳转到标签 */
-#define MY_SAFE_MALLOC_GOTO(ptr, size, label) \
-    do { \
-        (ptr) = pvPortMalloc(size); \
-        if ((ptr) == NULL) \
-        { \
-            MY_LOG_E("Alloc failed: %d bytes", (size)); \
-            goto label; \
-        } \
-    } while (0)
-
-/* 安全内存分配宏（带标签）：失败时输出带标签的错误日志并返回 */
-#define MY_SAFE_MALLOC_TAG(ptr, size, tag, ret_val) \
-    do { \
-        (ptr) = pvPortMalloc(size); \
-        if ((ptr) == NULL) \
-        { \
-            MY_LOG_E("Alloc failed: %d bytes [%s]", (size), (tag)); \
-            return (ret_val); \
+            MY_LOG_E("Alloc failed: %u bytes", (unsigned)(size)); \
         } \
     } while (0)
 
@@ -66,26 +40,6 @@ extern "C" {
         { \
             vPortFree((void *)(ptr)); \
             (ptr) = NULL; \
-        } \
-    } while (0)
-
-/* 空指针检查宏（返回版本）：为空时输出错误日志并返回 */
-#define MY_CHECK_PTR_RETURN(ptr, ret_val) \
-    do { \
-        if ((ptr) == NULL) \
-        { \
-            MY_LOG_E("NULL pointer"); \
-            return (ret_val); \
-        } \
-    } while (0)
-
-/* 空指针检查宏（void版本）：为空时输出错误日志并返回 */
-#define MY_CHECK_PTR_RETURN_VOID(ptr) \
-    do { \
-        if ((ptr) == NULL) \
-        { \
-            MY_LOG_E("NULL pointer"); \
-            return; \
         } \
     } while (0)
 

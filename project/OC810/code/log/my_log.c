@@ -181,7 +181,7 @@ void my_log_dump(const char *tag, const void *data, uint32_t len)
         return;
     }
 
-    if (MY_LOG_CURRENT_LEVEL < MY_LOG_LEVEL_DEBUG)
+    if (MY_LOG_CURRENT_LEVEL > MY_LOG_LEVEL_DEBUG)
     {
         return;
     }

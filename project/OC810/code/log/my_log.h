@@ -57,6 +57,12 @@
     #define MY_LOG_DUMP(tag, data, len)
 #endif
 
+#if (MY_LOG_CURRENT_LEVEL >= MY_LOG_LEVEL_INFO)
+    #define MY_LOG_INF_DUMP(tag, data, len)    my_log_dump(tag, data, len)
+#else
+    #define MY_LOG_INF_DUMP(tag, data, len)
+#endif
+
 /* ==================== 日志统计 ==================== */
 
 typedef struct {

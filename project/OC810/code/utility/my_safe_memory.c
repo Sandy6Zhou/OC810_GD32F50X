@@ -31,16 +31,16 @@ void my_safe_memory_check_health(void)
 
     if (freeHeap < MY_SAFE_MEM_CRITICAL_THRESHOLD)
     {
-        MY_LOG_E("[MEM] Low heap: %d bytes (%d%% used)", freeHeap, usage);
+        MY_LOG_E("[MEM] Low heap: %u bytes (%u%% used)", (unsigned)freeHeap, (unsigned)usage);
     }
     else if (freeHeap < MY_SAFE_MEM_WARN_THRESHOLD)
     {
-        MY_LOG_W("[MEM] Heap warning: %d bytes (%d%% used)", freeHeap, usage);
+        MY_LOG_W("[MEM] Heap warning: %u bytes (%u%% used)", (unsigned)freeHeap, (unsigned)usage);
     }
 
     if (minHeap < MY_SAFE_MEM_MIN_THRESHOLD)
     {
-        MY_LOG_E("[MEM] Critical min heap: %d bytes", minHeap);
+        MY_LOG_E("[MEM] Critical min heap: %u bytes", (unsigned)minHeap);
     }
 }
 

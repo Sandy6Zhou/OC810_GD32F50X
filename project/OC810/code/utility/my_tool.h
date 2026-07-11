@@ -208,7 +208,6 @@ int my_tool_in_timerange(const char *start_time, const char *end_time,
  * @param   polynomial 多项式（常用：0x1021 CCITT / 0xA001 MODBUS）
  * @return  CRC16 校验值
  * @note    初始值固定 0xFFFF，异或输出 0x0000
- *          适用于 NT98XX 协议、JT/T 808 等标准
  *********************************************************************/
 uint16_t my_tool_crc16(const uint8_t *data, uint16_t len, uint16_t polynomial);
 
