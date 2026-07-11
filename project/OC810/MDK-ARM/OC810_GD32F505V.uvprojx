@@ -389,9 +389,14 @@
               <FilePath>..\code\app\gd32f50x_it.c</FilePath>
             </File>
             <File>
-              <FileName>main.c</FileName>
+              <FileName>my_rtt_shell.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\app\main.c</FilePath>
+              <FilePath>..\code\app\my_rtt_shell.c</FilePath>
+            </File>
+            <File>
+              <FileName>main_os_api_test.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\test\main_os_api_test.c</FilePath>
             </File>
           </Files>
         </Group>

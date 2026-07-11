@@ -28,6 +28,10 @@
 #include "queue.h"
 #include "timers.h"
 #include "semphr.h"
+#include "event_groups.h"
+
+/* 业务公共定义（消息ID/定时器ID） */
+#include "my_comm.h"
 
 /*********************************************************************
  * OS抽象层日志配置
@@ -156,7 +160,7 @@ typedef void (*my_task_func_t)(void *param);
 typedef SemaphoreHandle_t my_sem_t;
 
 /*********************************************************************
- * 消息类型定义
+ * 消息队列类型定义
  *********************************************************************/
 
 /**
@@ -164,27 +168,7 @@ typedef SemaphoreHandle_t my_sem_t;
  */
 typedef QueueHandle_t my_msg_queue_t;
 
-/**
- * @brief 消息ID枚举定义
- */
-typedef enum
-{
-    MY_MSG_ID_BASE = 0,         /**< 消息ID基值 */
-    MY_MSG_ID_TEST,             /**< 测试消息 */
-    MY_MSG_ID_ISR_TEST,         /**< 中断测试消息 */
-
-    MY_MSG_ID_MAX               /**< 消息ID最大值 */
-} my_msg_id_e;
-
-/**
- * @brief 消息结构体定义
- */
-typedef struct
-{
-    my_msg_id_e msg_id;         /**< 消息ID */
-    void *msg_data;             /**< 消息数据指针 */
-    uint32_t msg_len;           /**< 消息数据长度（字节） */
-} my_msg_t;
+/* 注意：my_msg_id_e / my_msg_t 已迁移到 my_comm.h 统一管理 */
 
 /*********************************************************************
  * 定时器管理配置
@@ -203,21 +187,7 @@ typedef struct
 #define MY_OS_TIMER_BRIDGE_ENABLE    1   /**< 默认启用桥接函数 */
 #endif
 
-/*********************************************************************
- * 定时器类型定义
- *********************************************************************/
-
-/**
- * @brief 定时器ID枚举定义
- */
-typedef enum
-{
-    MY_TIMER_ID_ONE_MINUTE = 0, /**< 1分钟定时器（核心定时器） */
-    MY_TIMER_ID_TEST,           /**< 测试定时器 */
-    MY_TIMER_ID_ISR_TEST,       /**< 中断安全API测试定时器 */
-
-    MY_TIMER_ID_MAX             /**< 定时器ID最大值 */
-} my_timer_id_e;
+/* 注意：my_timer_id_e 已迁移到 my_comm.h 统一管理 */
 
 /**
  * @brief 定时器句柄类型（透明指针，隐藏RTOS细节）
@@ -285,6 +255,14 @@ int32_t my_task_create(my_task_handle_t *task_handle,
  * @note 任务句柄不能为NULL
  */
 #define my_task_resume(task_handle)     vTaskResume(task_handle)
+
+/**
+ * @brief 在中断中恢复任务
+ * @param task_handle 任务句柄
+ * @return 是否需要触发任务切换（pdTRUE=需要切换）
+ * @note 此函数只能从中断上下文调用
+ */
+#define my_task_resume_from_isr(task_handle)    xTaskResumeFromISR(task_handle)
 
 /**
  * @brief 获取当前任务句柄
@@ -508,7 +486,7 @@ int32_t my_sem_give_from_isr(my_sem_t sem, my_base_type_t *higher_priority_task_
  * my_msg_queue_t queue = my_msg_queue_create(10, sizeof(my_msg_t));
  *
  * // 发送消息
- * my_msg_t msg = {.msg_id = MY_MSG_ID_TEST, .msg_data = NULL, .msg_len = 0};
+ * my_msg_t msg = {.id = MY_MSG_ID_TEST, .data = NULL, .len = 0};
  * my_msg_send(queue, &msg, 100);
  *
  * // 接收消息
@@ -573,6 +551,13 @@ int32_t my_msg_recv_from_isr(my_msg_queue_t queue, my_msg_t *msg,
  * @return 消息数量，0表示队列为空
  */
 uint32_t my_msg_queue_get_count(my_msg_queue_t queue);
+
+/**
+ * @brief 查询消息队列剩余可用空间
+ * @param queue 消息队列句柄
+ * @return 剩余可容纳的消息数量
+ */
+uint32_t my_msg_queue_get_spaces(my_msg_queue_t queue);
 
 /**
  * @brief 清空消息队列
@@ -725,6 +710,202 @@ int32_t my_timer_change(my_timer_id_e timer_id, uint32_t new_period_ms);
  * @note 仅用于中断上下文，不能阻塞
  */
 int32_t my_timer_change_from_isr(my_timer_id_e timer_id, uint32_t new_period_ms);
+
+/*********************************************************************
+ * 事件组（Event Group）接口
+ *********************************************************************/
+
+/**
+ * @brief 事件组句柄类型
+ */
+typedef EventGroupHandle_t my_event_group_t;
+
+/**
+ * @brief 事件位类型
+ */
+typedef EventBits_t my_event_bits_t;
+
+/**
+ * @brief 创建事件组
+ * @return 事件组句柄，NULL表示创建失败
+ */
+my_event_group_t my_event_group_create(void);
+
+/**
+ * @brief 设置事件位
+ * @param group 事件组句柄
+ * @param bits 要设置的事件位
+ * @return 设置后的事件位值
+ */
+my_event_bits_t my_event_group_set_bits(my_event_group_t group, my_event_bits_t bits);
+
+/**
+ * @brief 在中断中设置事件位
+ * @param group 事件组句柄
+ * @param bits 要设置的事件位
+ * @param higher_priority_task_woken 是否需要触发任务切换
+ * @return 设置后的事件位值
+ */
+my_event_bits_t my_event_group_set_bits_from_isr(my_event_group_t group, my_event_bits_t bits,
+                                                   my_base_type_t *higher_priority_task_woken);
+
+/**
+ * @brief 等待事件位
+ * @param group 事件组句柄
+ * @param bits 要等待的事件位
+ * @param clear_on_exit 退出时是否清除事件位
+ * @param wait_all 是否等待所有位（true=等待所有位，false=等待任意位）
+ * @param timeout_ms 超时时间（毫秒），portMAX_DELAY表示永久等待
+ * @return 实际触发的事件位值
+ */
+my_event_bits_t my_event_group_wait_bits(my_event_group_t group, my_event_bits_t bits,
+                                          bool clear_on_exit, bool wait_all, uint32_t timeout_ms);
+
+/**
+ * @brief 清除事件位
+ * @param group 事件组句柄
+ * @param bits 要清除的事件位
+ * @return 清除后的事件位值
+ */
+my_event_bits_t my_event_group_clear_bits(my_event_group_t group, my_event_bits_t bits);
+
+/**
+ * @brief 删除事件组
+ * @param group 事件组句柄
+ */
+#define my_event_group_delete(group)    vEventGroupDelete(group)
+
+/*********************************************************************
+ * 任务通知（Task Notification）接口
+ *********************************************************************/
+
+/**
+ * @brief 发送任务通知（递增方式）
+ * @param task 目标任务句柄
+ * @return 0=成功，-1=失败
+ * @note 轻量级任务间通信，比信号量更高效
+ */
+int32_t my_task_notify_give(my_task_handle_t task);
+
+/**
+ * @brief 在中断中发送任务通知
+ * @param task 目标任务句柄
+ * @param higher_priority_task_woken 是否需要触发任务切换
+ * @return 0=成功，-1=失败
+ */
+int32_t my_task_notify_give_from_isr(my_task_handle_t task,
+                                       my_base_type_t *higher_priority_task_woken);
+
+/**
+ * @brief 等待任务通知
+ * @param clear_count 是否清除计数（true=清零，false=不清零）
+ * @param timeout_ms 超时时间（毫秒），portMAX_DELAY表示永久等待
+ * @return 收到的通知计数值
+ */
+uint32_t my_task_notify_take(bool clear_count, uint32_t timeout_ms);
+
+/**
+ * @brief 设置任务通知值
+ * @param task 目标任务句柄
+ * @param value 通知值
+ * @return 0=成功，-1=失败
+ */
+int32_t my_task_notify_set_value(my_task_handle_t task, uint32_t value);
+
+/**
+ * @brief 设置任务通知位
+ * @param task 目标任务句柄
+ * @param bits 要设置的位
+ * @return 0=成功，-1=失败
+ */
+int32_t my_task_notify_set_bits(my_task_handle_t task, uint32_t bits);
+
+/*********************************************************************
+ * 任务状态查询接口
+ *********************************************************************/
+
+/**
+ * @brief 任务状态枚举
+ */
+typedef enum
+{
+    MY_TASK_STATE_RUNNING = 0,  /**< 运行中 */
+    MY_TASK_STATE_READY,        /**< 就绪 */
+    MY_TASK_STATE_BLOCKED,      /**< 阻塞 */
+    MY_TASK_STATE_SUSPENDED,    /**< 挂起 */
+    MY_TASK_STATE_DELETED       /**< 已删除 */
+} my_task_state_e;
+
+/**
+ * @brief 获取任务状态
+ * @param task 任务句柄
+ * @return 任务状态枚举值
+ */
+my_task_state_e my_task_get_state(my_task_handle_t task);
+
+/**
+ * @brief 获取任务栈水位（历史最小剩余栈）
+ * @param task 任务句柄
+ * @return 剩余栈大小（字），数值越小越危险
+ * @note 用于检测栈溢出风险
+ */
+uint32_t my_task_get_stack_watermark(my_task_handle_t task);
+
+/**
+ * @brief 获取任务名称
+ * @param task 任务句柄
+ * @return 任务名称字符串指针
+ */
+const char* my_task_get_name(my_task_handle_t task);
+
+/*********************************************************************
+ * 内存管理接口
+ *********************************************************************/
+
+/**
+ * @brief 获取当前空闲堆内存大小
+ * @return 空闲堆内存大小（字节）
+ */
+uint32_t my_os_get_free_heap_size(void);
+
+/**
+ * @brief 获取历史最小空闲堆内存大小
+ * @return 历史最小空闲堆内存大小（字节）
+ * @note 用于监控堆内存使用峰值
+ */
+uint32_t my_os_get_min_free_heap_size(void);
+
+/**
+ * @brief 获取当前系统中的任务总数
+ * @return 任务数量（包括运行中、就绪、阻塞、挂起的任务）
+ */
+uint32_t my_os_get_task_count(void);
+
+/*********************************************************************
+ * 调度器控制接口
+ *********************************************************************/
+
+/**
+ * @brief 挂起调度器（暂停任务切换）
+ * @note 与 my_scheduler_resume() 配对使用
+ * @note 挂起期间中断仍可响应，但不会发生任务切换
+ * @note 适用于保护一段不能被任务切换打断的代码
+ * @warning 挂起期间不要调用任何可能阻塞的API（如vTaskDelay/xQueueReceive等）
+ * @example
+ * @code
+ * my_scheduler_suspend();
+ * // 执行不能被打断的批量操作
+ * for (int i = 0; i < 100; i++) { shared_array[i] = compute(i); }
+ * my_scheduler_resume();
+ * @endcode
+ */
+#define my_scheduler_suspend()      vTaskSuspendAll()
+
+/**
+ * @brief 恢复调度器（恢复任务切换）
+ * @note 与 my_scheduler_suspend() 配对使用
+ */
+#define my_scheduler_resume()       xTaskResumeAll()
 
 /*********************************************************************
  * 系统级通用接口

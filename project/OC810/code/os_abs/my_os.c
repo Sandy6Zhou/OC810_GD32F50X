@@ -491,6 +491,21 @@ uint32_t my_msg_queue_get_count(my_msg_queue_t queue)
 }
 
 /*********************************************************************
+ * @brief 查询消息队列剩余可用空间
+ * @param queue 消息队列句柄
+ * @return 剩余可容纳的消息数量
+ *********************************************************************/
+uint32_t my_msg_queue_get_spaces(my_msg_queue_t queue)
+{
+    if (queue == NULL)
+    {
+        return 0;
+    }
+
+    return uxQueueSpacesAvailable(queue);
+}
+
+/*********************************************************************
  * @brief 清空消息队列
  * @param queue 消息队列句柄
  * @return 0=成功，-1=失败
@@ -968,6 +983,330 @@ int32_t my_timer_change_from_isr(my_timer_id_e timer_id, uint32_t new_period_ms)
     portYIELD_FROM_ISR(higher_priority_task_woken);
 
     return 0;
+}
+
+/*********************************************************************
+ * 事件组（Event Group）接口实现
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief 创建事件组
+ * @return 事件组句柄，NULL表示创建失败
+ *********************************************************************/
+my_event_group_t my_event_group_create(void)
+{
+    EventGroupHandle_t group;
+
+    group = xEventGroupCreate();
+    if (group == NULL)
+    {
+        MY_OS_LOGE("Failed to create event group");
+        return NULL;
+    }
+
+    return group;
+}
+
+/*********************************************************************
+ * @brief 设置事件位
+ * @param group 事件组句柄
+ * @param bits 要设置的事件位
+ * @return 设置后的事件位值
+ *********************************************************************/
+my_event_bits_t my_event_group_set_bits(my_event_group_t group, my_event_bits_t bits)
+{
+    if (group == NULL)
+    {
+        return 0;
+    }
+
+    return xEventGroupSetBits(group, bits);
+}
+
+/*********************************************************************
+ * @brief 在中断中设置事件位
+ * @param group 事件组句柄
+ * @param bits 要设置的事件位
+ * @param higher_priority_task_woken 是否需要触发任务切换
+ * @return 设置后的事件位值
+ *********************************************************************/
+my_event_bits_t my_event_group_set_bits_from_isr(my_event_group_t group, my_event_bits_t bits,
+                                                   my_base_type_t *higher_priority_task_woken)
+{
+    BaseType_t ret;
+
+    if (group == NULL)
+    {
+        return 0;
+    }
+
+    ret = xEventGroupSetBitsFromISR(group, bits, higher_priority_task_woken);
+    if (ret != pdTRUE)
+    {
+        return 0;
+    }
+
+    return bits;
+}
+
+/*********************************************************************
+ * @brief 等待事件位
+ * @param group 事件组句柄
+ * @param bits 要等待的事件位
+ * @param clear_on_exit 退出时是否清除事件位
+ * @param wait_all 是否等待所有位
+ * @param timeout_ms 超时时间（毫秒）
+ * @return 实际触发的事件位值
+ *********************************************************************/
+my_event_bits_t my_event_group_wait_bits(my_event_group_t group, my_event_bits_t bits,
+                                          bool clear_on_exit, bool wait_all, uint32_t timeout_ms)
+{
+    TickType_t ticks;
+
+    if (group == NULL)
+    {
+        return 0;
+    }
+
+    /* 转换超时时间 */
+    if (timeout_ms == portMAX_DELAY)
+    {
+        ticks = portMAX_DELAY;
+    }
+    else
+    {
+        ticks = pdMS_TO_TICKS(timeout_ms);
+    }
+
+    return xEventGroupWaitBits(group, bits,
+                                clear_on_exit ? pdTRUE : pdFALSE,
+                                wait_all ? pdTRUE : pdFALSE,
+                                ticks);
+}
+
+/*********************************************************************
+ * @brief 清除事件位
+ * @param group 事件组句柄
+ * @param bits 要清除的事件位
+ * @return 清除后的事件位值
+ *********************************************************************/
+my_event_bits_t my_event_group_clear_bits(my_event_group_t group, my_event_bits_t bits)
+{
+    if (group == NULL)
+    {
+        return 0;
+    }
+
+    return xEventGroupClearBits(group, bits);
+}
+
+/*********************************************************************
+ * 任务通知（Task Notification）接口实现
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief 发送任务通知（递增方式）
+ * @param task 目标任务句柄
+ * @return 0=成功，-1=失败
+ *********************************************************************/
+int32_t my_task_notify_give(my_task_handle_t task)
+{
+    if (task == NULL)
+    {
+        return -1;
+    }
+
+    xTaskNotifyGive(task);
+    return 0;
+}
+
+/*********************************************************************
+ * @brief 在中断中发送任务通知
+ * @param task 目标任务句柄
+ * @param higher_priority_task_woken 是否需要触发任务切换
+ * @return 0=成功，-1=失败
+ *********************************************************************/
+int32_t my_task_notify_give_from_isr(my_task_handle_t task,
+                                       my_base_type_t *higher_priority_task_woken)
+{
+    if (task == NULL)
+    {
+        return -1;
+    }
+
+    /* vTaskNotifyGiveFromISR 返回 void，通过参数返回是否需要切换 */
+    vTaskNotifyGiveFromISR(task, higher_priority_task_woken);
+
+    return 0;
+}
+
+/*********************************************************************
+ * @brief 等待任务通知
+ * @param clear_count 是否清除计数
+ * @param timeout_ms 超时时间（毫秒）
+ * @return 收到的通知计数值
+ *********************************************************************/
+uint32_t my_task_notify_take(bool clear_count, uint32_t timeout_ms)
+{
+    TickType_t ticks;
+
+    /* 转换超时时间 */
+    if (timeout_ms == portMAX_DELAY)
+    {
+        ticks = portMAX_DELAY;
+    }
+    else
+    {
+        ticks = pdMS_TO_TICKS(timeout_ms);
+    }
+
+    return ulTaskNotifyTake(clear_count ? pdTRUE : pdFALSE, ticks);
+}
+
+/*********************************************************************
+ * @brief 设置任务通知值
+ * @param task 目标任务句柄
+ * @param value 通知值
+ * @return 0=成功，-1=失败
+ *********************************************************************/
+int32_t my_task_notify_set_value(my_task_handle_t task, uint32_t value)
+{
+    BaseType_t ret;
+
+    if (task == NULL)
+    {
+        return -1;
+    }
+
+    ret = xTaskNotify(task, value, eSetValueWithOverwrite);
+    if (ret != pdTRUE)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+/*********************************************************************
+ * @brief 设置任务通知位
+ * @param task 目标任务句柄
+ * @param bits 要设置的位
+ * @return 0=成功，-1=失败
+ *********************************************************************/
+int32_t my_task_notify_set_bits(my_task_handle_t task, uint32_t bits)
+{
+    BaseType_t ret;
+
+    if (task == NULL)
+    {
+        return -1;
+    }
+
+    ret = xTaskNotify(task, bits, eSetBits);
+    if (ret != pdTRUE)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+/*********************************************************************
+ * 任务状态查询接口实现
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief 获取任务状态
+ * @param task 任务句柄
+ * @return 任务状态枚举值
+ *********************************************************************/
+my_task_state_e my_task_get_state(my_task_handle_t task)
+{
+    eTaskState state;
+
+    if (task == NULL)
+    {
+        return MY_TASK_STATE_DELETED;
+    }
+
+    state = eTaskGetState(task);
+
+    switch (state)
+    {
+        case eRunning:
+            return MY_TASK_STATE_RUNNING;
+        case eReady:
+            return MY_TASK_STATE_READY;
+        case eBlocked:
+            return MY_TASK_STATE_BLOCKED;
+        case eSuspended:
+            return MY_TASK_STATE_SUSPENDED;
+        case eDeleted:
+            return MY_TASK_STATE_DELETED;
+        default:
+            return MY_TASK_STATE_DELETED;
+    }
+}
+
+/*********************************************************************
+ * @brief 获取任务栈水位
+ * @param task 任务句柄
+ * @return 剩余栈大小（字）
+ *********************************************************************/
+uint32_t my_task_get_stack_watermark(my_task_handle_t task)
+{
+    if (task == NULL)
+    {
+        return 0;
+    }
+
+    return uxTaskGetStackHighWaterMark(task);
+}
+
+/*********************************************************************
+ * @brief 获取任务名称
+ * @param task 任务句柄
+ * @return 任务名称字符串指针
+ *********************************************************************/
+const char* my_task_get_name(my_task_handle_t task)
+{
+    if (task == NULL)
+    {
+        return "NULL";
+    }
+
+    return pcTaskGetName(task);
+}
+
+/*********************************************************************
+ * 内存管理接口实现
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief 获取当前空闲堆内存大小
+ * @return 空闲堆内存大小（字节）
+ *********************************************************************/
+uint32_t my_os_get_free_heap_size(void)
+{
+    return xPortGetFreeHeapSize();
+}
+
+/*********************************************************************
+ * @brief 获取历史最小空闲堆内存大小
+ * @return 历史最小空闲堆内存大小（字节）
+ *********************************************************************/
+uint32_t my_os_get_min_free_heap_size(void)
+{
+    return xPortGetMinimumEverFreeHeapSize();
+}
+
+/*********************************************************************
+ * @brief 获取当前系统中的任务总数
+ * @return 任务数量
+ *********************************************************************/
+uint32_t my_os_get_task_count(void)
+{
+    return uxTaskGetNumberOfTasks();
 }
 
 /*********************************************************************
