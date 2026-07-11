@@ -23,8 +23,8 @@ project/OC810/code/os_abs/
 
 ### 1.4 版本信息
 
-- **当前版本**：V1.2
-- **更新日期**：2026.05.07
+- **当前版本**：V1.3
+- **更新日期**：2026.06.05
 - **作者**：伍玉蛟 (wuyujiao@jimiiot.com)
 
 ---
@@ -37,9 +37,10 @@ project/OC810/code/os_abs/
 my_os 模块
 ├── 任务管理（Task Management）
 │   ├── 创建/删除任务
-│   ├── 挂起/恢复任务
+│   ├── 挂起/恢复任务（支持任务/中断上下文）
 │   ├── 任务延时（普通/周期性）
-│   └── 获取任务句柄
+│   ├── 获取任务句柄/名称/状态/栈水位
+│   └── 任务优先级管理
 │
 ├── 信号量管理（Semaphore Management）
 │   ├── 二值信号量
@@ -54,7 +55,7 @@ my_os 模块
 ├── 消息队列（Message Queue）
 │   ├── 创建/删除队列
 │   ├── 发送/接收消息（支持任务/中断上下文）
-│   └── 查询/清空队列
+│   └── 查询计数/剩余空间/清空队列
 │
 ├── 定时器管理（Timer Management）
 │   ├── 创建/删除定时器
@@ -62,14 +63,32 @@ my_os 模块
 │   ├── 修改定时器周期（支持任务/中断上下文）
 │   └── 周期/单次定时器支持
 │
+├── 事件组（Event Group）
+│   ├── 创建/删除事件组
+│   ├── 设置/清除事件位（支持任务/中断上下文）
+│   ├── 等待事件位（支持任意位/所有位/自动清除）
+│   └── 多任务同步机制
+│
+├── 任务通知（Task Notification）
+│   ├── 递增通知 give/take（支持任务/中断上下文）
+│   ├── 设置值/设置位通知
+│   └── 轻量级任务间通信
+│
+├── 调度器控制（Scheduler Control）
+│   ├── 挂起/恢复调度器
+│   └── 保护不能被任务切换打断的代码段
+│
+├── 内存管理（Memory Management）
+│   ├── 获取当前空闲堆大小
+│   └── 获取历史最小空闲堆大小
+│
 ├── 时间服务（Time Service）
 │   ├── 获取系统滴答（任务/中断上下文）
-│   └── 毫秒到 tick 转换
+│   └── 毫秒/tick 双向转换
 │
 └── 系统功能（System Functions）
     ├── 错误处理（死循环+看门狗）
-    ├── 系统复位（可配置延时）
-    └── 任务统计初始化
+    └── 系统复位（可配置延时）
 ```
 
 ### 2.2 日志系统
@@ -123,35 +142,61 @@ typedef SemaphoreHandle_t my_sem_t;            // 信号量句柄
 
 ### 3.4 消息相关类型
 
+消息相关类型已迁移到 `my_comm.h` 统一管理：
+
 ```c
 typedef QueueHandle_t my_msg_queue_t;           // 消息队列句柄
 
 typedef enum {
     MY_MSG_ID_BASE = 0,                         // 消息ID基值
     MY_MSG_ID_TEST,                             // 测试消息
-
+    MY_MSG_ID_ISR_TEST,                         // 中断测试消息
+    MY_MSG_ID_ADC_DATA_READY,                   // ADC数据就绪
+    /* ... 按需扩展 ... */
     MY_MSG_ID_MAX                               // 消息ID最大值
 } my_msg_id_e;
 
 typedef struct {
-    my_msg_id_e msg_id;                         // 消息ID
-    void *msg_data;                             // 消息数据指针
-    uint32_t msg_len;                           // 消息数据长度（字节）
+    my_msg_id_e id;                              // 消息ID
+    void        *data;                           // 消息数据指针
+    uint32_t    len;                             // 消息数据长度（字节）
 } my_msg_t;
 ```
 
 ### 3.5 定时器相关类型
 
+定时器ID已迁移到 `my_comm.h` 统一管理：
+
 ```c
 typedef enum {
     MY_TIMER_ID_ONE_MINUTE = 0,                 // 1分钟定时器（核心定时器）
     MY_TIMER_ID_TEST,                           // 测试定时器
-
+    MY_TIMER_ID_ISR_TEST,                       // 中断安全API测试定时器
+    /* ... 按需扩展 ... */
     MY_TIMER_ID_MAX                             // 定时器ID最大值
 } my_timer_id_e;
 
 typedef void* my_timer_handle_t;  // 定时器句柄（透明指针）
 typedef void (*my_timer_callback_t)(my_timer_handle_t timer_handle);  // 定时器回调
+```
+
+### 3.6 事件组类型
+
+```c
+typedef EventGroupHandle_t my_event_group_t;    // 事件组句柄
+typedef EventBits_t        my_event_bits_t;     // 事件位类型
+```
+
+### 3.7 任务状态枚举
+
+```c
+typedef enum {
+    MY_TASK_STATE_RUNNING = 0,                  // 运行中
+    MY_TASK_STATE_READY,                        // 就绪
+    MY_TASK_STATE_BLOCKED,                      // 阻塞
+    MY_TASK_STATE_SUSPENDED,                    // 挂起
+    MY_TASK_STATE_DELETED                       // 已删除
+} my_task_state_e;
 ```
 
 ---
@@ -245,11 +290,44 @@ void my_task(void *param)
 // 恢复任务
 #define my_task_resume(task_handle)
 
+// 在中断中恢复任务（返回是否需要任务切换）
+#define my_task_resume_from_isr(task_handle)
+
 // 获取当前任务句柄
 #define my_task_get_current()
 
 // 任务延时（毫秒）
 #define my_task_delay_ms(delay_ms)
+```
+
+---
+
+#### 4.1.4 任务状态查询接口
+
+```c
+// 获取任务状态
+my_task_state_e my_task_get_state(my_task_handle_t task);
+
+// 获取任务栈水位（历史最小剩余栈，单位：字）
+uint32_t my_task_get_stack_watermark(my_task_handle_t task);
+
+// 获取任务名称
+const char* my_task_get_name(my_task_handle_t task);
+```
+
+**使用示例：**
+```c
+// 监控任务栈水位（建议在周期任务中检查）
+uint32_t watermark = my_task_get_stack_watermark(task_handle);
+if (watermark < 20) {
+    MY_LOG_W("Task stack low: %d words", watermark);
+}
+
+// 检查任务状态
+my_task_state_e state = my_task_get_state(task_handle);
+if (state == MY_TASK_STATE_SUSPENDED) {
+    my_task_resume(task_handle);
+}
 ```
 
 ---
@@ -409,7 +487,7 @@ my_msg_queue_t my_msg_queue_create(uint32_t queue_len, uint32_t item_size);
 my_msg_queue_t queue = my_msg_queue_create(10, sizeof(my_msg_t));
 
 // 发送消息
-my_msg_t msg = {.msg_id = MY_MSG_ID_TEST, .msg_data = NULL, .msg_len = 0};
+my_msg_t msg = {.id = MY_MSG_ID_TEST, .data = NULL, .len = 0};
 my_msg_send(queue, &msg, 100);
 
 // 接收消息
@@ -438,6 +516,9 @@ int32_t my_msg_recv_from_isr(my_msg_queue_t queue, my_msg_t *msg,
 
 // 查询消息数量
 uint32_t my_msg_queue_get_count(my_msg_queue_t queue);
+
+// 查询队列剩余可用空间
+uint32_t my_msg_queue_get_spaces(my_msg_queue_t queue);
 
 // 清空队列
 int32_t my_msg_queue_reset(my_msg_queue_t queue);
@@ -548,6 +629,9 @@ int32_t my_timer_change_from_isr(my_timer_id_e timer_id, uint32_t new_period_ms)
 
 // 毫秒转系统滴答
 #define my_ms_to_ticks(ms)
+
+// 系统滴答转毫秒
+#define my_ticks_to_ms(ticks)
 ```
 
 **使用示例：**
@@ -559,6 +643,12 @@ while (!condition) {
         return -1;  // 超时
     }
 }
+
+// 计算实际延时时间
+my_tick_type_t tick_before = my_os_get_tick();
+my_task_delay_ms(1000);
+my_tick_type_t tick_after = my_os_get_tick();
+uint32_t actual_ms = my_ticks_to_ms(tick_after - tick_before);
 ```
 
 ---
@@ -572,8 +662,8 @@ void my_error_handler(void);
 // 系统复位
 void my_system_reset(uint32_t delay_ms);
 
-// 初始化任务信息统计
-void my_task_info_init(void);
+// 获取当前系统中的任务总数
+uint32_t my_os_get_task_count(void);
 ```
 
 **使用示例：**
@@ -586,6 +676,174 @@ if (critical_error) {
 // 系统复位
 my_system_reset(100);  // 延时100ms后复位（确保日志输出）
 my_system_reset(0);    // 立即复位
+
+// 监控任务数量（开发调试用）
+uint32_t tasks = my_os_get_task_count();
+MY_LOG_I("Active tasks: %d", tasks);
+```
+
+---
+
+### 4.8 事件组接口
+
+事件组提供多任务同步机制，通过位标志实现灵活的事件组合等待。
+
+```c
+// 创建事件组
+my_event_group_t my_event_group_create(void);
+
+// 设置事件位
+my_event_bits_t my_event_group_set_bits(my_event_group_t group, my_event_bits_t bits);
+
+// 在中断中设置事件位
+my_event_bits_t my_event_group_set_bits_from_isr(my_event_group_t group, my_event_bits_t bits,
+                                                   my_base_type_t *higher_priority_task_woken);
+
+// 等待事件位
+// clear_on_exit: true=退出时自动清除等待的位
+// wait_all: true=等待所有位, false=等待任意位
+my_event_bits_t my_event_group_wait_bits(my_event_group_t group, my_event_bits_t bits,
+                                          bool clear_on_exit, bool wait_all, uint32_t timeout_ms);
+
+// 清除事件位
+my_event_bits_t my_event_group_clear_bits(my_event_group_t group, my_event_bits_t bits);
+
+// 删除事件组
+#define my_event_group_delete(group)
+```
+
+**使用示例：**
+```c
+// 定义事件位
+#define EVENT_DATA_READY    (1 << 0)
+#define EVENT_CONFIG_DONE   (1 << 1)
+#define EVENT_ALL_READY     (EVENT_DATA_READY | EVENT_CONFIG_DONE)
+
+// 任务A：等待所有事件就绪
+my_event_group_t group = my_event_group_create();
+my_event_bits_t bits = my_event_group_wait_bits(group, EVENT_ALL_READY,
+                                                  true,   // 退出时自动清除
+                                                  true,   // 等待所有位
+                                                  portMAX_DELAY);
+
+// 任务B：设置事件
+my_event_group_set_bits(group, EVENT_DATA_READY);
+
+// 中断中设置事件
+void EXTI_IRQHandler(void)
+{
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    my_event_group_set_bits_from_isr(group, EVENT_CONFIG_DONE, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+```
+
+**重要说明：**
+- `xEventGroupClearBits` 返回的是**清除前**的事件位值
+- 事件组最多支持 24 个事件位（bit0~bit23）
+
+---
+
+### 4.9 任务通知接口
+
+任务通知是 FreeRTOS 提供的轻量级任务间通信机制，每个任务有独立的通知值，比信号量更高效。
+
+```c
+// 发送递增通知（任务上下文）
+int32_t my_task_notify_give(my_task_handle_t task);
+
+// 发送递增通知（中断上下文）
+int32_t my_task_notify_give_from_isr(my_task_handle_t task,
+                                       my_base_type_t *higher_priority_task_woken);
+
+// 等待通知（返回收到的通知计数）
+// clear_count: true=清零计数, false=不清零
+uint32_t my_task_notify_take(bool clear_count, uint32_t timeout_ms);
+
+// 设置通知值（覆盖方式）
+int32_t my_task_notify_set_value(my_task_handle_t task, uint32_t value);
+
+// 设置通知位（OR方式）
+int32_t my_task_notify_set_bits(my_task_handle_t task, uint32_t bits);
+```
+
+**使用示例：**
+```c
+// 场景1：替代二值信号量（轻量级同步）
+// 任务A：等待通知
+uint32_t count = my_task_notify_take(true, portMAX_DELAY);
+
+// 任务B：发送通知
+my_task_notify_give(task_a_handle);
+
+// 场景2：中断触发任务
+void EXTI_IRQHandler(void)
+{
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    my_task_notify_give_from_isr(task_handle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+// 场景3：累积通知计数
+// 发送3次通知，接收方一次取走
+my_task_notify_give(task_handle);  // count += 1
+my_task_notify_give(task_handle);  // count += 1
+my_task_notify_give(task_handle);  // count += 1
+// 接收方
+uint32_t count = my_task_notify_take(true, 100);  // count = 3
+```
+
+---
+
+### 4.10 调度器控制接口
+
+调度器控制用于暂停任务切换（但不禁用中断），适用于保护不能被任务切换打断的代码段。
+
+```c
+// 挂起调度器（暂停任务切换）
+#define my_scheduler_suspend()
+
+// 恢复调度器（恢复任务切换）
+#define my_scheduler_resume()
+```
+
+**使用示例：**
+```c
+// 保护一段不能被打断的批量操作
+my_scheduler_suspend();
+for (int i = 0; i < 100; i++) {
+    shared_array[i] = compute(i);
+}
+my_scheduler_resume();
+```
+
+**重要说明：**
+- ⚠️ 与临界区的区别：挂起调度器不会禁用中断，ISR仍然可以响应
+- ⚠️ 挂起期间**不能**调用任何可能阻塞的API（如vTaskDelay、xQueueReceive、xSemaphoreTake等）
+- 适用于比临界区更长但不能被打断的代码段
+
+---
+
+### 4.11 内存管理接口
+
+```c
+// 获取当前空闲堆内存大小（字节）
+uint32_t my_os_get_free_heap_size(void);
+
+// 获取历史最小空闲堆内存大小（字节）
+uint32_t my_os_get_min_free_heap_size(void);
+```
+
+**使用示例：**
+```c
+// 内存监控（建议在周期任务中检查）
+uint32_t free_heap = my_os_get_free_heap_size();
+uint32_t min_heap = my_os_get_min_free_heap_size();
+MY_LOG_I("Free: %d bytes, Min ever: %d bytes", free_heap, min_heap);
+
+if (free_heap < 1024) {
+    MY_LOG_W("Low memory warning!");
+}
 ```
 
 ---
@@ -621,7 +879,7 @@ void system_init(void)
     my_msg_queue_t queue = my_msg_queue_create(10, sizeof(my_msg_t));
 
     // 4. 创建定时器
-    my_timer_create(MY_TIMER_ID_ONE_MINUTE, timer_callback, 60000, NULL);
+    my_timer_create(MY_TIMER_ID_ONE_MINUTE, timer_callback, 60000);
     my_timer_start(MY_TIMER_ID_ONE_MINUTE, 0);
 
     // 5. 创建任务
@@ -646,6 +904,16 @@ void system_init(void)
 | `my_msg_recv_from_isr` | ❌ | ✅ |
 | `my_os_get_tick` | ✅ | ❌ |
 | `my_os_get_tick_from_isr` | ❌ | ✅ |
+| `my_task_resume` | ✅ | ❌ |
+| `my_task_resume_from_isr` | ❌ | ✅ |
+| `my_event_group_set_bits` | ✅ | ❌ |
+| `my_event_group_set_bits_from_isr` | ❌ | ✅ |
+| `my_task_notify_give` | ✅ | ❌ |
+| `my_task_notify_give_from_isr` | ❌ | ✅ |
+| `my_timer_start` | ✅ | ❌ |
+| `my_timer_start_from_isr` | ❌ | ✅ |
+| `my_timer_stop` | ✅ | ❌ |
+| `my_timer_stop_from_isr` | ❌ | ✅ |
 
 ---
 
@@ -753,7 +1021,7 @@ if (ret != 0) {
 
 ### 8.2 定时器数量
 
-在 `my_os.h` 的 `my_timer_id_e` 中定义：
+在 `my_comm.h` 的 `my_timer_id_e` 中定义：
 
 ```c
 typedef enum {
@@ -767,7 +1035,7 @@ typedef enum {
 
 ### 8.3 消息ID
 
-在 `my_os.h` 的 `my_msg_id_e` 中定义：
+在 `my_comm.h` 的 `my_msg_id_e` 中定义：
 
 ```c
 typedef enum {
@@ -775,7 +1043,7 @@ typedef enum {
     MY_MSG_ID_CONTROL_CMD,
     MY_MSG_ID_STATUS_REPORT,
 
-    MY_MSG_ID_MAX  // 必须放在最后
+    MY_MSG_ID_MAX  // 必须放到最后
 } my_msg_id_e;
 ```
 
@@ -820,7 +1088,7 @@ void EXTI_IRQHandler(void)
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-    my_msg_t msg = {.msg_id = MY_MSG_ID_EVENT, .msg_data = NULL};
+    my_msg_t msg = {.id = MY_MSG_ID_EVENT, .data = NULL};
     my_msg_send_from_isr(queue, &msg, &xHigherPriorityTaskWoken);
 
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -868,6 +1136,7 @@ void EXTI_IRQHandler(void)
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| V1.3 | 2026.06.05 | 新增事件组(Event Group)接口；新增任务通知(Task Notification)接口；新增任务状态查询/栈水位/名称接口；新增内存管理接口；新增调度器挂起/恢复；新增my_msg_queue_get_spaces/my_os_get_task_count/my_task_resume_from_isr/my_ticks_to_ms；消息ID/定时器ID迁移到my_comm.h；my_msg_t字段简化为id/data/len |
 | V1.2 | 2026.05.07 | 封装FreeRTOS基础类型为my_前缀类型（my_base_type_t/my_ubase_type_t/my_tick_type_t）；更新临界区宏命名 |
 | V1.1 | 2026.05.07 | 添加my_sem_take_from_isr中断安全API；完善定时器中断安全API；修正回调示例 |
 | V1.0 | 2026.05.06 | 初始版本，创建 os_abs 目录，迁移 my_common 为 my_os |
