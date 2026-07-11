@@ -40,6 +40,7 @@ OF SUCH DAMAGE.
 #include "dma_driver.h"
 #include "uart_driver.h"
 #include "adc_driver.h"
+#include "gpio_driver.h"
 
 #define SRAM_ECC_ERROR_HANDLE(s)    do{}while(1)
 
@@ -678,4 +679,153 @@ void ADC0_1_IRQHandler(void)
 void ADC2_IRQHandler(void)
 {
     drv_adc_irq_handler(DRV_ADC2);
+}
+
+/*********************************************************************
+ * EXTI 中断服务函数
+ *
+ * 设计说明：
+ *   1. EXTI0~4独立中断线，各自独立ISR
+ *   2. EXTI5~9共享EXTI5_9_IRQn
+ *   3. EXTI10~15共享EXTI10_15_IRQn
+ *   4. ISR调用drv_gpio_exti_handler()统一处理
+ *   5. 驱动层自动查找并执行注册的回调函数
+ *********************************************************************/
+
+/*********************************************************************
+ * @brief   EXTI0 中断服务函数（PB0）
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void EXTI0_IRQHandler(void)
+{
+    if (SET == exti_interrupt_flag_get(EXTI_0))
+    {
+        exti_interrupt_flag_clear(EXTI_0);
+        drv_gpio_exti_handler(EXTI_0);
+    }
+}
+
+/*********************************************************************
+ * @brief   EXTI1 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void EXTI1_IRQHandler(void)
+{
+    if (SET == exti_interrupt_flag_get(EXTI_1))
+    {
+        exti_interrupt_flag_clear(EXTI_1);
+        drv_gpio_exti_handler(EXTI_1);
+    }
+}
+
+/*********************************************************************
+ * @brief   EXTI2 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void EXTI2_IRQHandler(void)
+{
+    if (SET == exti_interrupt_flag_get(EXTI_2))
+    {
+        exti_interrupt_flag_clear(EXTI_2);
+        drv_gpio_exti_handler(EXTI_2);
+    }
+}
+
+/*********************************************************************
+ * @brief   EXTI3 中断服务函数（PB3）
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void EXTI3_IRQHandler(void)
+{
+    if (SET == exti_interrupt_flag_get(EXTI_3))
+    {
+        exti_interrupt_flag_clear(EXTI_3);
+        drv_gpio_exti_handler(EXTI_3);
+    }
+}
+
+/*********************************************************************
+ * @brief   EXTI4 中断服务函数（PB4）
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void EXTI4_IRQHandler(void)
+{
+    if (SET == exti_interrupt_flag_get(EXTI_4))
+    {
+        exti_interrupt_flag_clear(EXTI_4);
+        drv_gpio_exti_handler(EXTI_4);
+    }
+}
+
+/*********************************************************************
+ * @brief   EXTI5~9 中断服务函数
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void EXTI5_9_IRQHandler(void)
+{
+    /* 检查EXTI5~9哪个中断标志置位 */
+    if(SET == exti_interrupt_flag_get(EXTI_5))
+    {
+        exti_interrupt_flag_clear(EXTI_5);
+        drv_gpio_exti_handler(EXTI_5);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_6))
+    {
+        exti_interrupt_flag_clear(EXTI_6);
+        drv_gpio_exti_handler(EXTI_6);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_7))
+    {
+        exti_interrupt_flag_clear(EXTI_7);
+        drv_gpio_exti_handler(EXTI_7);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_8))
+    {
+        exti_interrupt_flag_clear(EXTI_8);
+        drv_gpio_exti_handler(EXTI_8);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_9))
+    {
+        exti_interrupt_flag_clear(EXTI_9);
+        drv_gpio_exti_handler(EXTI_9);
+    }
+}
+
+/*********************************************************************
+ * @brief   EXTI10~15 中断服务函数（PB14在此范围）
+ * @note    由硬件自动调用，转发到驱动层统一处理
+ *********************************************************************/
+void EXTI10_15_IRQHandler(void)
+{
+    /* 检查EXTI10~15哪个中断标志置位 */
+    if(SET == exti_interrupt_flag_get(EXTI_10))
+    {
+        exti_interrupt_flag_clear(EXTI_10);
+        drv_gpio_exti_handler(EXTI_10);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_11))
+    {
+        exti_interrupt_flag_clear(EXTI_11);
+        drv_gpio_exti_handler(EXTI_11);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_12))
+    {
+        exti_interrupt_flag_clear(EXTI_12);
+        drv_gpio_exti_handler(EXTI_12);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_13))
+    {
+        exti_interrupt_flag_clear(EXTI_13);
+        drv_gpio_exti_handler(EXTI_13);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_14))
+    {
+        exti_interrupt_flag_clear(EXTI_14);
+        drv_gpio_exti_handler(EXTI_14);
+    }
+    if(SET == exti_interrupt_flag_get(EXTI_15))
+    {
+        exti_interrupt_flag_clear(EXTI_15);
+        drv_gpio_exti_handler(EXTI_15);
+    }
 }

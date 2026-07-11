@@ -270,26 +270,29 @@ int32_t drv_gpio_deinit(drv_gpio_port_e port, drv_gpio_pin_e pin);
  * 基础操作函数（inline封装，零开销）
  *********************************************************************/
 
+/** GPIO端口枚举到基地址映射表（外部声明，供inline函数使用） */
+extern uint32_t const g_gpio_port_base[DRV_GPIO_PORT_MAX];
+
 /*********************************************************************
  * @brief   设置引脚高电平
- * @param   port GPIO端口基地址(DRV_GPIOA~DRV_GPIOE)
+ * @param   port GPIO端口索引(DRV_GPIO_PORT_A~E)
  * @param   pin 引脚掩码
- * @note    直接封装gpio_bit_set()
+ * @note    自动转换端口索引为GD32基地址
  *********************************************************************/
 static inline void drv_gpio_set(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
-    gpio_bit_set(port, pin);
+    gpio_bit_set(g_gpio_port_base[port], pin);
 }
 
 /*********************************************************************
  * @brief   设置引脚低电平
- * @param   port GPIO端口基地址(DRV_GPIOA~DRV_GPIOE)
+ * @param   port GPIO端口索引(DRV_GPIO_PORT_A~E)
  * @param   pin 引脚掩码
- * @note    直接封装gpio_bit_reset()
+ * @note    自动转换端口索引为GD32基地址
  *********************************************************************/
 static inline void drv_gpio_reset(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
-    gpio_bit_reset(port, pin);
+    gpio_bit_reset(g_gpio_port_base[port], pin);
 }
 
 /*********************************************************************
@@ -302,11 +305,11 @@ static inline void drv_gpio_write(drv_gpio_port_e port, drv_gpio_pin_e pin, bool
 {
     if (state)
     {
-        gpio_bit_set(port, pin);
+        gpio_bit_set(g_gpio_port_base[port], pin);
     }
     else
     {
-        gpio_bit_reset(port, pin);
+        gpio_bit_reset(g_gpio_port_base[port], pin);
     }
 }
 
@@ -319,7 +322,7 @@ static inline void drv_gpio_write(drv_gpio_port_e port, drv_gpio_pin_e pin, bool
  *********************************************************************/
 static inline bool drv_gpio_read_input(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
-    return (gpio_input_bit_get(port, pin) == SET);
+    return (gpio_input_bit_get(g_gpio_port_base[port], pin) == SET);
 }
 
 /*********************************************************************
@@ -331,7 +334,7 @@ static inline bool drv_gpio_read_input(drv_gpio_port_e port, drv_gpio_pin_e pin)
  *********************************************************************/
 static inline bool drv_gpio_read_output(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
-    return (gpio_output_bit_get(port, pin) == SET);
+    return (gpio_output_bit_get(g_gpio_port_base[port], pin) == SET);
 }
 
 /*********************************************************************
@@ -353,13 +356,13 @@ static inline bool drv_gpio_read(drv_gpio_port_e port, drv_gpio_pin_e pin)
  *********************************************************************/
 static inline void drv_gpio_toggle(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
-    if (gpio_output_bit_get(port, pin) == SET)
+    if (gpio_output_bit_get(g_gpio_port_base[port], pin) == SET)
     {
-        gpio_bit_reset(port, pin);
+        gpio_bit_reset(g_gpio_port_base[port], pin);
     }
     else
     {
-        gpio_bit_set(port, pin);
+        gpio_bit_set(g_gpio_port_base[port], pin);
     }
 }
 
@@ -411,8 +414,11 @@ void drv_gpio_exti_enable(drv_gpio_port_e port, drv_gpio_pin_e pin);
 
 /*********************************************************************
  * @brief   禁用EXTI中断
- * @param   port GPIO端口基地址(DRV_GPIOA~DRV_GPIOE)
+ * @param   port GPIO端口基地址
  * @param   pin 引脚掩码
+ * @note    仅禁用EXTI中断，不修改回调表配置
+ *          用于快速开关中断场景（如关键代码段保护）
+ *          回调函数保持注册，后续可通过drv_gpio_exti_enable快速恢复
  *********************************************************************/
 void drv_gpio_exti_disable(drv_gpio_port_e port, drv_gpio_pin_e pin);
 

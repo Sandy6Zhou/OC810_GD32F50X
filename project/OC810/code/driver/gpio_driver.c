@@ -22,8 +22,8 @@
  * 内部宏定义
  *********************************************************************/
 
- /** GPIO端口枚举到基地址映射表 */
-static uint32_t const s_gpio_port_base[DRV_GPIO_PORT_MAX] = {
+ /** GPIO端口枚举到基地址映射表（extern供inline函数使用） */
+uint32_t const g_gpio_port_base[DRV_GPIO_PORT_MAX] = {
     GPIOA,
     GPIOB,
     GPIOC,
@@ -100,7 +100,7 @@ int32_t drv_gpio_init(const drv_gpio_config_t *config)
     }
 
     /* 获取GD32 GPIO基地址 */
-    gpio_base = s_gpio_port_base[config->port];
+    gpio_base = g_gpio_port_base[config->port];
 
     /* 检查是否有引脚已使用（仅警告，不阻止配置） */
     pin_mask = config->pin;
@@ -132,10 +132,14 @@ int32_t drv_gpio_init(const drv_gpio_config_t *config)
     {
         gpio_output_options_set(gpio_base, config->otype, config->speed, config->pin);
 
-        /* 设置初始状态（仅当显式指定时） */
+        /* 设置初始状态 */
         if (config->initial_state)
         {
             gpio_bit_set(gpio_base, config->pin);
+        }
+        else
+        {
+            gpio_bit_reset(gpio_base, config->pin);
         }
     }
 
@@ -176,9 +180,9 @@ int32_t drv_gpio_deinit(drv_gpio_port_e port, drv_gpio_pin_e pin)
     }
 
     /* 获取GD32 GPIO基地址 */
-    gpio_base = s_gpio_port_base[port];
+    gpio_base = g_gpio_port_base[port];
 
-    /* 禁用EXTI中断（支持多引脚） */
+    /* 禁用EXTI中断并清除配置（支持多引脚） */
     pin_mask = pin;
     while (pin_mask != 0)
     {
@@ -187,9 +191,22 @@ int32_t drv_gpio_deinit(drv_gpio_port_e port, drv_gpio_pin_e pin)
         uint32_t single_pin = (1U << highest_bit);
 
         exti_line = _drv_gpio_pin_to_exti_line(single_pin);
-        if (exti_line < DRV_MAX_EXTI_LINE_COUNT && s_exti_table[exti_line - EXTI_0].is_exti)
+        if (exti_line != 0xFFFFFFFFU)  /* 检查EXTI线号是否有效 */
         {
-            drv_gpio_exti_disable(port, single_pin);
+            uint32_t exti_index = 31U - __CLZ(exti_line);
+
+            if (s_exti_table[exti_index].is_exti)
+            {
+                /* 禁用EXTI中断 */
+                exti_interrupt_disable(exti_line);
+
+                /* 清除EXTI挂起位 */
+                exti_interrupt_flag_clear(exti_line);
+
+                /* 清除EXTI回调表 */
+                s_exti_table[exti_index].callback = NULL;
+                s_exti_table[exti_index].is_exti = false;
+            }
         }
         pin_mask &= ~single_pin;  /* 清除已处理的位 */
     }
@@ -231,7 +248,7 @@ int32_t drv_gpio_deinit(drv_gpio_port_e port, drv_gpio_pin_e pin)
  *********************************************************************/
 void drv_gpio_write_port(drv_gpio_port_e port, uint16_t value)
 {
-    uint32_t gpio_base = s_gpio_port_base[port];
+    uint32_t gpio_base = g_gpio_port_base[port];
 
     gpio_port_write(gpio_base, value);
 }
@@ -244,9 +261,7 @@ void drv_gpio_write_port(drv_gpio_port_e port, uint16_t value)
  *********************************************************************/
 uint16_t drv_gpio_read_port(drv_gpio_port_e port)
 {
-    uint32_t gpio_base = s_gpio_port_base[port];
-
-    return gpio_input_port_get(gpio_base);
+    return gpio_input_port_get(g_gpio_port_base[port]);
 }
 
 /*********************************************************************
@@ -271,33 +286,38 @@ int32_t drv_gpio_exti_configure(drv_gpio_port_e port, drv_gpio_pin_e pin,
     uint32_t exti_line;
     IRQn_Type irqn;
     uint8_t port_source;
+    uint8_t pin_source;
     uint32_t exti_index;
 
+    /* 参数校验 */
     if (callback == NULL)
     {
         return DRV_GPIO_ERR_NULL_PTR;
     }
-
-    /* 获取EXTI线号和中断号 */
-    exti_line = _drv_gpio_pin_to_exti_line(pin);
-    irqn = gpio_pin_to_irqn(pin);
-    exti_index = exti_line - EXTI_0;
 
     /* 获取端口源 */
     if (port >= DRV_GPIO_PORT_MAX)
     {
         return DRV_GPIO_ERR_INVALID_PORT;
     }
+
+    /* 获取EXTI线号和中断号 */
+    exti_line = _drv_gpio_pin_to_exti_line(pin);
+    if (exti_line == 0xFFFFFFFFU)
+    {
+        DRV_GPIO_LOGE("Invalid EXTI pin: 0x%04X", pin);
+        return DRV_GPIO_ERR_INVALID_PIN;
+    }
+
+    /* 使能AF时钟（EXTI必须） */
+    rcu_periph_clock_enable(RCU_AF);
+
+    /* 获取端口源 */
     port_source = s_gpio_port_source[port];
+    pin_source = (uint8_t)(31U - __CLZ(pin));
 
-    /* 连接GPIO到EXTI */
-    gpio_exti_source_select(port_source, (uint8_t)(31U - __CLZ(pin)));
-
-    /* 配置EXTI中断模式和触发方式 */
-    exti_init(exti_line, (exti_mode_enum)mode, (exti_trig_type_enum)trigger);
-
-    /* 清除EXTI挂起位 */
-    exti_interrupt_flag_clear(exti_line);
+    irqn = gpio_pin_to_irqn(pin);
+    exti_index = 31U - __CLZ(exti_line);  /* 位掩码转索引 */
 
     /* 注册回调函数到EXTI表 */
     s_exti_table[exti_index].port = port;
@@ -306,7 +326,16 @@ int32_t drv_gpio_exti_configure(drv_gpio_port_e port, drv_gpio_pin_e pin,
     s_exti_table[exti_index].is_exti = true;
 
     /* 配置NVIC中断 */
-    nvic_irq_enable(irqn, irq_priority, 0);
+    nvic_irq_enable(irqn, irq_priority, 0U);
+
+    /* 连接GPIO到EXTI */
+    gpio_exti_source_select(port_source, pin_source);
+
+    /* 配置EXTI中断模式和触发方式 */
+    exti_init(exti_line, (exti_mode_enum)mode, (exti_trig_type_enum)trigger);
+
+    /* 清除EXTI挂起位 */
+    exti_interrupt_flag_clear(exti_line);
 
     DRV_GPIO_LOGD("GPIO EXTI configured: pin=%d, line=%d, irqn=%d", exti_index, exti_line, irqn);
 
@@ -324,6 +353,12 @@ void drv_gpio_exti_enable(drv_gpio_port_e port, drv_gpio_pin_e pin)
     uint32_t exti_line;
 
     exti_line = _drv_gpio_pin_to_exti_line(pin);
+    if (exti_line == 0xFFFFFFFFU)
+    {
+        DRV_GPIO_LOGE("Invalid EXTI pin: 0x%04X", pin);
+        return;
+    }
+
     exti_interrupt_enable(exti_line);
 
     DRV_GPIO_LOGD("GPIO EXTI enabled: pin=0x%04X", pin);
@@ -333,25 +368,29 @@ void drv_gpio_exti_enable(drv_gpio_port_e port, drv_gpio_pin_e pin)
  * @brief   禁用EXTI中断
  * @param   port GPIO端口基地址
  * @param   pin 引脚掩码
- * @note    禁用EXTI中断并清除回调函数
+ * @note    仅禁用EXTI中断，不修改回调表配置
+ *          用于快速开关中断场景（如关键代码段保护）
+ *          回调函数保持注册，后续可通过drv_gpio_exti_enable快速恢复
  *********************************************************************/
 void drv_gpio_exti_disable(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
     uint32_t exti_line;
-    uint32_t exti_index;
 
-    /* 清除EXTI回调表 */
+    /* 获取EXTI线号 */
     exti_line = _drv_gpio_pin_to_exti_line(pin);
-    exti_index = exti_line - EXTI_0;
-    s_exti_table[exti_index].port = DRV_GPIO_PORT_A;
-    s_exti_table[exti_index].pin = (drv_gpio_pin_e)0;
-    s_exti_table[exti_index].callback = NULL;
-    s_exti_table[exti_index].is_exti = false;
+    if (exti_line == 0xFFFFFFFFU)
+    {
+        DRV_GPIO_LOGE("Invalid EXTI pin: 0x%04X", pin);
+        return;
+    }
 
-    /* 禁用EXTI中断 */
+    /* 禁用EXTI中断（不修改回调表） */
     exti_interrupt_disable(exti_line);
 
-    DRV_GPIO_LOGD("GPIO EXTI disabled: pin=%d", exti_index);
+    /* 清除EXTI挂起位（防止重新使能时立即触发中断） */
+    exti_interrupt_flag_clear(exti_line);
+
+    DRV_GPIO_LOGD("GPIO EXTI disabled: pin=0x%04X", pin);
 }
 
 /*********************************************************************
@@ -366,7 +405,7 @@ void drv_gpio_exti_disable(drv_gpio_port_e port, drv_gpio_pin_e pin)
  *********************************************************************/
 void drv_gpio_lock(drv_gpio_port_e port, drv_gpio_pin_e pin)
 {
-    uint32_t gpio_base = s_gpio_port_base[port];
+    uint32_t gpio_base = g_gpio_port_base[port];
     gpio_pin_lock(gpio_base, pin);
 }
 
@@ -384,8 +423,8 @@ void drv_gpio_exti_handler(uint32_t exti_line)
     uint32_t exti_index;
     drv_gpio_exti_callback_t callback;
 
-    /* O(1)直接索引查找 */
-    exti_index = exti_line - EXTI_0;
+    /* 位掩码转索引（EXTI枚举是位掩码，不是连续整数） */
+    exti_index = 31U - __CLZ(exti_line);
     if (exti_index >= DRV_MAX_EXTI_LINE_COUNT)
     {
         return;
@@ -478,7 +517,7 @@ static uint32_t _drv_gpio_pin_to_exti_line(uint32_t pin)
     {
         if (pin & (1U << i))
         {
-            return (EXTI_0 + i);
+            return (1U << i);  /* 返回位掩码，不是 EXTI_0 + i */
         }
     }
 
