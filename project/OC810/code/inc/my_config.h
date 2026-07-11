@@ -28,7 +28,7 @@
 #define MY_MAIN_TASK_PRIO       (tskIDLE_PRIORITY + 4)     /**< 主任务协调 */
 #define MY_CTRL_TASK_PRIO       (tskIDLE_PRIORITY + 4)     /**< 控制模块 */
 #define MY_SHELL_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RTT Shell调试 */
-#define MY_NT98XX_TASK_PRIO     (tskIDLE_PRIORITY + 3)     /**< 视频芯片 */
+#define MY_DVR_TASK_PRIO     (tskIDLE_PRIORITY + 3)     /**< 视频芯片 */
 #define MY_RS485_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RS485串口 */
 #define MY_RS232_TASK_PRIO      (tskIDLE_PRIORITY + 3)     /**< RS232串口 */
 #define MY_GNSS_TASK_PRIO       (tskIDLE_PRIORITY + 2)     /**< GNSS定位 */
@@ -57,10 +57,10 @@
 #define MY_CTRL_TASK_STACK_SIZE         (configMINIMAL_STACK_SIZE * 6)
 
 /**
- * @brief NT98XX模块任务栈大小
- * @note NT98XX视频芯片控制，逻辑中等
+ * @brief DVR模块任务栈大小
+ * @note DVR视频芯片控制，逻辑中等
  */
-#define MY_NT98XX_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE * 2)
+#define MY_DVR_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE * 2)
 
 /**
  * @brief GSENSOR模块任务栈大小
@@ -112,9 +112,9 @@
 #define MY_CTRL_MSG_QUEUE_DEPTH         (8)
 
 /**
- * @brief NT98XX模块消息队列深度
+ * @brief DVR模块消息队列深度
  */
-#define MY_NT98XX_MSG_QUEUE_DEPTH       (8)
+#define MY_DVR_MSG_QUEUE_DEPTH       (8)
 
 /**
  * @brief GSENSOR模块消息队列深度
@@ -173,7 +173,7 @@
     MY_MAIN_TASK_STACK_SIZE + \
     MY_SHELL_TASK_STACK_SIZE + \
     MY_CTRL_TASK_STACK_SIZE + \
-    MY_NT98XX_TASK_STACK_SIZE + \
+    MY_DVR_TASK_STACK_SIZE + \
     MY_GSENSOR_TASK_STACK_SIZE + \
     MY_GNSS_TASK_STACK_SIZE + \
     MY_CAN_TASK_STACK_SIZE + \
@@ -195,7 +195,7 @@
 #define MY_TOTAL_QUEUE_BYTES        ( \
     (MY_MAIN_MSG_QUEUE_DEPTH + \
      MY_CTRL_MSG_QUEUE_DEPTH + \
-     MY_NT98XX_MSG_QUEUE_DEPTH + \
+     MY_DVR_MSG_QUEUE_DEPTH + \
      MY_GSENSOR_MSG_QUEUE_DEPTH + \
      MY_GNSS_MSG_QUEUE_DEPTH + \
      MY_CAN_MSG_QUEUE_DEPTH + \
@@ -222,7 +222,7 @@ _Static_assert(
  * @brief 编译期校验：任务数量不超过configMAX_PRIORITIES
  * @note 确保每个任务都能分配到独立优先级
  */
-#define MY_TASK_COUNT   (10)  /* AMS/CAN/CTRL/GNSS/GSENSOR/MAIN/NT98XX/RS232/RS485/SHELL */
+#define MY_TASK_COUNT   (10)  /* AMS/CAN/CTRL/GNSS/GSENSOR/MAIN/DVR/RS232/RS485/SHELL */
 
 /* 编译期校验：最高优先级不超过configMAX_PRIORITIES */
 _Static_assert(

@@ -409,9 +409,9 @@
               <FilePath>..\code\app\my_ctrl.c</FilePath>
             </File>
             <File>
-              <FileName>my_nt98xx.c</FileName>
+              <FileName>my_dvr.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\app\my_nt98xx.c</FilePath>
+              <FilePath>..\code\app\my_dvr.c</FilePath>
             </File>
             <File>
               <FileName>my_gsensor.c</FileName>

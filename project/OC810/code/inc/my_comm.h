@@ -45,7 +45,7 @@ typedef enum
     TASK_MOD_MAIN = 0,    /**< 主模块 */
     TASK_MOD_RTT_SHELL,   /**< RTT Shell模块 */
     TASK_MOD_CTRL,        /**< 控制模块 */
-    TASK_MOD_NT98XX,      /**< NT98XX模块 */
+    TASK_MOD_DVR,      /**< DVR模块 */
     TASK_MOD_GSENSOR,     /**< G传感器模块 */
     TASK_MOD_GNSS,        /**< GNSS模块 */
     TASK_MOD_CAN,         /**< CAN模块 */
@@ -76,12 +76,15 @@ typedef enum
 
     /* MY_RTT_SHELL模块消息 */
 
-    /* MY_NT98XX模块消息 */
-    MY_MSG_ID_NT98XX_UART_ERROR,    /**< NT98XX UART错误 */
-    MY_MSG_ID_NT98XX_UART_TX_DONE,  /**< UART发送完成 */
-    MY_MSG_ID_NT98XX_UART_RX_RDY,   /**< NT98XX UART接收完成 */
-
-    MY_MSG_ID_NT98XX_UART_SEND,     /**< UART发送请求 */
+    /* MY_DVR模块消息 */
+    MY_MSG_ID_DVR_UART_SEND,              /**< DVR UART发送请求 */
+    MY_MSG_ID_DVR_UART_ERROR,             /**< DVR UART错误 */
+    MY_MSG_ID_DVR_UART_TX_DONE,           /**< DVR UART发送完成 */
+    MY_MSG_ID_DVR_UART_RX_RDY,            /**< DVR UART接收完成 */
+    MY_MSG_ID_DVR_PARSE_TIMEOUT,          /**< DVR 协议解析超时（2秒未完成） */
+    MY_MSG_ID_DVR_SEND_HEARTBEAT,         /**< 向DVR发送心跳包（1秒） */
+    MY_MSG_ID_DVR_HEARTBEAT_RCV,          /**< 接收DVR心跳包 */
+    MY_MSG_ID_DVR_WAIT_HEARTBEAT_TOUT,    /**< 接收DVR心跳包超时（1秒未完成） */
 
     /* AMS/GNSS/CAN等模块消息按需扩展 */
 
@@ -106,9 +109,11 @@ typedef struct my_msg
  *   1. 新增定时器：在末尾追加，映射到下一个可用的 MY_TIMER_ID_SLOT_X
  *   2. 溢出检查：超过 MY_TIMER_ID_SLOT_49 时编译报错（枚举值不存在）
  *********************************************************************/
-#define MY_TIMER_ID_ONE_MINUTE   MY_TIMER_ID_SLOT_0   /**< 1分钟定时器（核心） */
-#define MY_TIMER_ID_TEST         MY_TIMER_ID_SLOT_1   /**< 测试定时器 */
-#define MY_TIMER_ID_ISR_TEST     MY_TIMER_ID_SLOT_2   /**< 中断安全API测试 */
+#define MY_TIMER_ID_TEST                  MY_TIMER_ID_SLOT_0   /**< 测试定时器 */
+#define MY_TIMER_ID_ONE_MINUTE            MY_TIMER_ID_SLOT_1   /**< 1分钟定时器（核心） */
+#define MY_TIMER_ID_DVR_PARSE_TIMEOUT     MY_TIMER_ID_SLOT_2   /**< DVR协议解析超时（2秒） */
+#define MY_TIMER_ID_DVR_SEND_HEARTBEAT    MY_TIMER_ID_SLOT_3   /**< DVR发送心跳包（1秒） */
+#define MY_TIMER_ID_DVR_WAIT_HEARTBEAT    MY_TIMER_ID_SLOT_4   /**< DVR接收心跳包（1秒） */
 
 /*********************************************************************
  * 公共数据结构定义（预留扩展）
@@ -145,10 +150,10 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
 #define MSG_QUEUE_CTRL           g_msg_queue[TASK_MOD_CTRL]
 #define TASK_STATE_CTRL          g_task_state[TASK_MOD_CTRL]
 
-/* 定义NT98XX任务的句柄和消息队列 */
-#define TASK_HANDLE_NT98XX       g_task_handle[TASK_MOD_NT98XX]
-#define MSG_QUEUE_NT98XX         g_msg_queue[TASK_MOD_NT98XX]
-#define TASK_STATE_NT98XX        g_task_state[TASK_MOD_NT98XX]
+/* 定义DVR任务的句柄和消息队列 */
+#define TASK_HANDLE_DVR          g_task_handle[TASK_MOD_DVR]
+#define MSG_QUEUE_DVR            g_msg_queue[TASK_MOD_DVR]
+#define TASK_STATE_DVR           g_task_state[TASK_MOD_DVR]
 
 /* 定义G-Sensor任务的句柄和消息队列 */
 #define TASK_HANDLE_GSENSOR      g_task_handle[TASK_MOD_GSENSOR]
@@ -207,7 +212,7 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
 #include "my_main.h"
 #include "my_rtt_shell.h"
 #include "my_ctrl.h"
-#include "my_nt98xx.h"
+#include "my_dvr.h"
 #include "my_gsensor.h"
 #include "my_gnss.h"
 #include "my_can.h"

@@ -57,7 +57,7 @@ static int sub_tasks_init(void)
     }
 
     /* 3. NT98xx视频模块 */
-    if (my_nt98xx_init() != 0)
+    if (my_dvr_init() != 0)
     {
         MY_LOG_E("NT98xx init failed!");
         fail_count++;
