@@ -789,9 +789,9 @@
               <FilePath>..\code\utility\my_os.c</FilePath>
             </File>
             <File>
-              <FileName>my_safe_memory.c</FileName>
+              <FileName>my_mem.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\utility\my_safe_memory.c</FilePath>
+              <FilePath>..\code\utility\my_mem.c</FilePath>
             </File>
             <File>
               <FileName>my_tq.c</FileName>

@@ -189,7 +189,7 @@ extern task_state_e              g_task_state[TASK_MOD_MAX];
  * 工具库头文件
  *********************************************************************/
 #include "my_log.h"
-#include "my_safe_memory.h"
+#include "my_mem.h"
 #include "my_version.h"
 #include "my_rb.h"
 #include "my_tq.h"

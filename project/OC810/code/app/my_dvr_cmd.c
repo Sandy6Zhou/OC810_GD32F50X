@@ -166,7 +166,7 @@ void my_dvr_cmd_send_response(uint16_t seq, uint16_t cmd, const uint8_t *payload
         /* 大数据：使用动态内存 */
         max_frame_len = (uint16_t)((payload_len + D_DVR_FRAME_MIN_LEN) * 2U + 2U);
 
-        MY_SAFE_MALLOC(tx_buf, max_frame_len);
+        MY_MALLOC(tx_buf, max_frame_len);
         if (tx_buf == NULL)
         {
             return;
@@ -191,7 +191,7 @@ void my_dvr_cmd_send_response(uint16_t seq, uint16_t cmd, const uint8_t *payload
     /* 释放动态内存（静态缓冲区无需释放） */
     if (dynamic_alloc)
     {
-        MY_SAFE_FREE(tx_buf);
+        MY_FREE(tx_buf);
     }
 }
 
@@ -221,7 +221,7 @@ void my_dvr_cmd_send_request(uint16_t cmd, const uint8_t *payload, uint16_t payl
         /* 大数据：使用动态内存 */
         max_frame_len = (uint16_t)((payload_len + D_DVR_FRAME_MIN_LEN) * 2U + 2U);
 
-        MY_SAFE_MALLOC(tx_buf, max_frame_len);
+        MY_MALLOC(tx_buf, max_frame_len);
         if (tx_buf == NULL)
         {
             return;
@@ -246,7 +246,7 @@ void my_dvr_cmd_send_request(uint16_t cmd, const uint8_t *payload, uint16_t payl
     /* 释放动态内存（静态缓冲区无需释放） */
     if (dynamic_alloc)
     {
-        MY_SAFE_FREE(tx_buf);
+        MY_FREE(tx_buf);
     }
 }
 

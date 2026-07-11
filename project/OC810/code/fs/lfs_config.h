@@ -18,7 +18,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "my_log.h"         /**< 引入我们的日志系统 */
-#include "my_safe_memory.h" /**< 安全内存管理 */
+#include "my_mem.h"         /**< 安全内存管理 */
 #include "param_flash.h"    /**< FLASH驱动配置 */
 
 /*******************************************************************************

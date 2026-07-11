@@ -326,7 +326,7 @@ static int cmd_sys_status(int argc, char *argv[])
     shell_printf("  Tick Count:  %d\r\n", (int)ticks_now);
 
     /* === 内存统计 === */
-    my_safe_memory_get_stats(&free_heap, &min_heap, &usage_pct);
+    my_mem_get_stats(&free_heap, &min_heap, &usage_pct);
 
     shell_print("\r\n");
     shell_print("  --- Memory ---\r\n");
