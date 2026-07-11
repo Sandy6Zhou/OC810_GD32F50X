@@ -108,7 +108,7 @@ extern uint32_t SystemCoreClock;
 #define INCLUDE_vTaskSuspend							1
 #define INCLUDE_vTaskDelayUntil							1
 #define INCLUDE_vTaskDelay								1
-#define INCLUDE_uxTaskGetStackHighWaterMark				0
+#define INCLUDE_uxTaskGetStackHighWaterMark				1
 #define INCLUDE_xTaskGetIdleTaskHandle					0
 #define INCLUDE_eTaskGetState							1
 #define INCLUDE_xTaskResumeFromISR						0
@@ -125,8 +125,8 @@ extern uint32_t SystemCoreClock;
  * format the raw data provided by the uxTaskGetSystemState() function in to
  * human readable ASCII form.  See the notes in the implementation of vTaskList()
  * within FreeRTOS/Source/tasks.c for limitations.
- * Disabled for production to save ~5KB Flash */
-#define configUSE_STATS_FORMATTING_FUNCTIONS			0
+ * Enabled for RTT Shell 'sys status' command (~5KB Flash overhead) */
+#define configUSE_STATS_FORMATTING_FUNCTIONS			1
 
 /* Dimensions a buffer that can be used by the FreeRTOS+CLI command interpreter.
  * See the FreeRTOS+CLI documentation for more information:
