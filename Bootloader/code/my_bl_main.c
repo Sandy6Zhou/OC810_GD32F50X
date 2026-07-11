@@ -65,10 +65,6 @@ void jump_to_execute(void)
         app_address = *(__IO uint32_t*) (BL_FLASH_APP_BASE + 4U);
         application = (app_func) app_address;
 
-        /* 切换向量表并确保生效 */
-        SCB->VTOR = BL_FLASH_APP_BASE;
-        __DSB();
-
         /* 初始化APP堆栈指针 */
         __set_MSP(*(__IO uint32_t*) BL_FLASH_APP_BASE);
 
@@ -92,6 +88,7 @@ int main(void)
     app_func application;
     uint32_t app_address;
     my_bl_bootconf_t bconf;
+    // uint32_t sram_sect = REG32(BL_FLASH_APP_BASE);
 
     /* 1. 硬件初始化 */
     SystemCoreClockUpdate();

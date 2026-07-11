@@ -134,6 +134,9 @@ int my_gnss_init(void)
     /* 检查任务创建结果 */
     if (ret != 0 || TASK_HANDLE_GNSS == NULL)
     {
+        my_msg_queue_delete(MSG_QUEUE_GNSS);
+        MSG_QUEUE_GNSS = NULL;
+
         MY_LOG_E("Failed to create task(%d)", ret);
         return -1;
     }

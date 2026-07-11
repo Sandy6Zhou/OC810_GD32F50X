@@ -367,6 +367,9 @@ int my_main_init(void)
     /* 检查任务创建结果 */
     if (ret != 0 || TASK_HANDLE_MAIN == NULL)
     {
+        my_msg_queue_delete(MSG_QUEUE_MAIN);
+        MSG_QUEUE_MAIN = NULL;
+
         MY_LOG_E("Task create failed!");
         return -1;
     }

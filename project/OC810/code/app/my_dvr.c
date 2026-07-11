@@ -448,6 +448,9 @@ int my_dvr_init(void)
     /* 检查任务创建结果 */
     if (ret != 0 || TASK_HANDLE_DVR == NULL)
     {
+        my_msg_queue_delete(MSG_QUEUE_DVR);
+        MSG_QUEUE_DVR = NULL;
+
         MY_LOG_E("Failed to create task(%d)", ret);
         return -1;
     }
