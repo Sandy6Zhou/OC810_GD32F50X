@@ -11,6 +11,7 @@
 | V1.4 | 2026.05.13 | 伍玉蛟 | 增加TXE中断发送模式（UART_TX_MODE_INTERRUPT），无需DMA通道 |
 | V1.5 | 2026.05.20 | 伍玉蛟 | 增加GPIO配置宏表、NO_USE选项、编译期/运行时双重检查 |
 | V1.6 | 2026.06.20 | 伍玉蛟 | RingBuffer更名为my_rb_t，SPSC无锁设计，目录结构精简 |
+| V1.7 | 2026.07.15 | 伍玉蛟 | DMA回调携带channel_id精准定位端口，移除全局状态变量，并发安全重构 |
 
 ---
 
@@ -550,8 +551,8 @@ drv_uart_resume(DRV_UART_PORT_UART3);
 // 发送互斥锁（每个端口独立）
 config.use_tx_mutex = true;  // 多任务时必须启用
 
-// 全局DMA TX互斥锁（异步模式自动创建）
-// 保护 s_current_dma_tx_port 变量，防止多端口竞态
+// 每端口 dma_tx_active 标志（ISR 回调定位用）
+// DMA 回调携带 channel_id，通过反向查找直接定位端口，无全局状态变量
 ```
 
 ### 9.2 多任务使用注意
@@ -632,6 +633,7 @@ main_uart_all_test.c  # 5个端口混合TX模式测试
 - ⚠️ 回调在**中断上下文**中执行
 - ⚠️ 必须快速执行，不能阻塞
 - ⚠️ 不能调用FreeRTOS API（非FromISR版本）
+- ⚠️ DMA 回调签名必须携带 `drv_dma_channel_id_e channel_id` 参数（V1.7）
 
 ### 11.4 DMA发送注意事项
 
@@ -639,11 +641,22 @@ main_uart_all_test.c  # 5个端口混合TX模式测试
 - data指针必须在DMA传输期间有效（使用全局或静态变量）
 - 不能使用局部变量作为DMA缓冲区指针
 
+**DMA回调定位机制（V1.7）**：
+- DMA 回调函数携带 `channel_id` 参数，驱动通过反向查找直接定位端口
+- 不再使用全局状态变量（`s_current_dma_tx_port` 等已移除）
+- 多端口可并发 DMA TX，互不干扰
+
 **DMA_ASYNC模式**：
 - 超时时间应大于最大数据量的传输时间（建议2-3倍）
-- 多端口并发时，全局互斥锁会串行化发送
+- 多端口可并发 DMA TX，每端口独立 `dma_tx_active` 标志，无全局锁串行化
 
-### 11.5 中断优先级
+### 11.5 反初始化安全（V1.7新增）
+
+- `drv_uart_deinit()` 会自动检测并强制停止进行中的 DMA TX（异步模式和双缓冲模式）
+- 清理顺序：清标志 → 停 DMA → 注销回调 → deinit 通道 → 释放信号量
+- 应用层无需在 deinit 前手动等待 DMA 完成
+
+### 11.6 中断优先级
 
 - UART中断优先级需低于FreeRTOS系统中断优先级
 - 配置方法：`nvic_priority_group_set(NVIC_PRIGROUP_PRE4_SUB0)`
@@ -736,3 +749,5 @@ main_uart_all_test.c  # 5个端口混合TX模式测试
 ✅ **双重检查机制**（V1.5新增：编译期#error + 运行时错误返回）
 ✅ **RingBuffer SPSC无锁设计**（V1.6更新：移除count字段，中断安全，无需volatile）
 ✅ **目录结构精简**（V1.6更新：my_os/my_safe_memory/my_rb统一归入utility/）
+✅ **DMA回调channel_id精准定位**（V1.7：移除全局状态变量，多端口并发安全）
+✅ **deinit强制停止DMA TX**（V1.7：防止释放资源后ISR访问已释放信号量）
