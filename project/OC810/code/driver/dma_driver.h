@@ -159,8 +159,8 @@ typedef struct
     bool memory_inc;                        /**< 内存地址递增（true=递增，false=固定） */
 } drv_dma_config_t;
 
-/** DMA 中断回调函数类型 */
-typedef void (*drv_dma_callback_t)(void);
+/** DMA 中断回调函数类型（参数为触发中断的通道 ID） */
+typedef void (*drv_dma_callback_t)(drv_dma_channel_id_e channel_id);
 
 /*********************************************************************
  * API 接口声明
@@ -295,5 +295,18 @@ bool drv_dma_is_initialized(drv_dma_channel_id_e channel_id);
  * @note   此函数由 gd32f50x_it.c 中的 ISR 调用
  */
 void drv_dma_run_callback(drv_dma_channel_id_e channel_id, drv_dma_int_type_e int_flag);
+
+/**
+ * @brief  DMA 快速重配置（ISR 安全）
+ * @param  channel_id DMA 通道 ID
+ * @param  memory_addr 新内存地址
+ * @param  transfer_number 新传输数量
+ * @return DRV_DMA_ERR_OK=成功，其他=失败
+ * @note   仅更新内存地址和传输数量，清除中断标志并重启通道
+ * @note   适用于 ISR 中的 DMA 缓冲区切换场景，无日志输出，极简快速
+ */
+int32_t drv_dma_reconfig_fast(drv_dma_channel_id_e channel_id,
+                              uint32_t memory_addr,
+                              uint16_t transfer_number);
 
 #endif /* __DMA_DRIVER_H__ */

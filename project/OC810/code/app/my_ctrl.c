@@ -103,7 +103,7 @@ static const ctrl_adc_dev_t s_adc_list[] = {
 };
 
 #define CTRL_ADC_PORT           DRV_ADC0          /**< ADC端口 */
-#define CTRL_ADC_DMA_CH         DRV_DMA0_CH0      /**< ADC DMA通道 */
+#define CTRL_ADC_DMA_CH         DRV_DMA0_CH0      /**< ADC DMA通道（硬件固定CH0，USART0已改用CH7避开冲突） */
 #define CTRL_ADC_VREF_MV        (3300U)           /**< ADC参考电压(mV) */
 #define CTRL_ADC_DIV_R1         (732U)            /**< 分压电阻R1(kΩ) - 上臂 */
 #define CTRL_ADC_DIV_R2         (75U)             /**< 分压电阻R2(kΩ) - 下臂 */
@@ -152,7 +152,7 @@ static void    ctrl_start_adc(void);
 static void    ctrl_stop_adc(void);
 static void    ctrl_process_input(void);
 static void    ctrl_process_adc_data(void);
-static void    ctrl_adc_dma_complete_cb(void);
+static void    ctrl_adc_dma_complete_cb(drv_dma_channel_id_e channel_id);
 static void    ctrl_adc_timer_cb(my_timer_handle_t timer_handle);
 
 /*********************************************************************
@@ -482,7 +482,7 @@ static void ctrl_process_adc_data(void)
         }
     }
 
-    MY_LOG_I("ADC: volt1=%u volt2=%u pwr=%u",
+    MY_LOG_D("ADC: volt1=%u volt2=%u pwr=%u",
              s_state.adc_ext_volt1, s_state.adc_ext_volt2, s_state.adc_pwr_volt);
 }
 
@@ -510,7 +510,7 @@ static void ctrl_adc_timer_cb(my_timer_handle_t timer_handle)
  * @return  none
  * @note    DMA收集完48个样本后触发，发送ADC_DONE消息到CTRL任务
  *********************************************************************/
-static void ctrl_adc_dma_complete_cb(void)
+static void ctrl_adc_dma_complete_cb(drv_dma_channel_id_e channel_id)
 {
     my_base_type_t xHigherPriorityTaskWoken = pdFALSE;
     my_msg_t msg = {

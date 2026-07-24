@@ -761,25 +761,66 @@ void drv_dma_run_callback(drv_dma_channel_id_e channel_id, drv_dma_int_type_e in
         case DRV_DMA_INT_FTF:
             if (s_dma_ctrl[channel_id].ftf_callback != NULL)
             {
-                s_dma_ctrl[channel_id].ftf_callback();
+                s_dma_ctrl[channel_id].ftf_callback(channel_id);
             }
             break;
 
         case DRV_DMA_INT_HTF:
             if (s_dma_ctrl[channel_id].htf_callback != NULL)
             {
-                s_dma_ctrl[channel_id].htf_callback();
+                s_dma_ctrl[channel_id].htf_callback(channel_id);
             }
             break;
 
         case DRV_DMA_INT_ERR:
             if (s_dma_ctrl[channel_id].err_callback != NULL)
             {
-                s_dma_ctrl[channel_id].err_callback();
+                s_dma_ctrl[channel_id].err_callback(channel_id);
             }
             break;
 
         default:
             break;
     }
+}
+
+/*********************************************************************
+ * @brief   DMA 快速重配置（ISR 安全）
+ * @param   channel_id DMA 通道 ID
+ * @param   memory_addr 新内存地址
+ * @param   transfer_number 新传输数量
+ * @return  DRV_DMA_ERR_OK=成功，其他=失败
+ * @note    仅更新内存地址和传输数量，无日志输出，适用于 ISR 中的 DMA 缓冲区切换
+ *********************************************************************/
+int32_t drv_dma_reconfig_fast(drv_dma_channel_id_e channel_id,
+                              uint32_t memory_addr,
+                              uint16_t transfer_number)
+{
+    uint32_t dma_periph;
+    dma_channel_enum dma_ch;
+
+    /* 最小化参数检查（不使用宏，避免日志输出） */
+    if (channel_id >= DRV_DMA_MAX)
+    {
+        return DRV_DMA_ERR_INVALID_CHANNEL;
+    }
+    if (s_dma_ctrl[channel_id].state < DRV_DMA_STATE_INITIALIZED || memory_addr == 0 || transfer_number == 0)
+    {
+        return DRV_DMA_ERR_INVALID_PARAM;
+    }
+
+    dma_periph = s_dma_ctrl[channel_id].dma_periph;
+    dma_ch = (dma_channel_enum)s_dma_ctrl[channel_id].channel_index;
+
+    /* 停止 DMA 通道 */
+    dma_channel_disable(dma_periph, dma_ch);
+
+    /* 直接更新内存地址和传输数量 */
+    dma_memory_address_config(dma_periph, dma_ch, memory_addr);
+    dma_transfer_number_config(dma_periph, dma_ch, transfer_number);
+
+    /* 重新启动 DMA 通道 */
+    dma_channel_enable(dma_periph, dma_ch);
+
+    return DRV_DMA_ERR_OK;
 }

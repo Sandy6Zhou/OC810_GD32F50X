@@ -579,8 +579,12 @@ int32_t my_timer_create(my_timer_id_e timer_id, my_timer_callback_t callback,
         return -1;
     }
 
-    /* 转换周期 */
+    /* 转换周期（period_ms=0表示单次定时器，至少给1tick避免FreeRTOS异常） */
     period_ticks = pdMS_TO_TICKS(period_ms);
+    if (period_ticks == 0)
+    {
+        period_ticks = 1;
+    }
 
 #if (MY_OS_TIMER_BRIDGE_ENABLE == 1)
     /* 方案A：使用桥接函数（推荐）- 100%解耦，应用层不依赖FreeRTOS */
@@ -696,6 +700,10 @@ int32_t my_timer_start(my_timer_id_e timer_id, uint32_t timeout_ms)
     if (timeout_ms > 0)
     {
         ticks = pdMS_TO_TICKS(timeout_ms);
+        if (ticks == 0)
+        {
+            ticks = 1;
+        }
         xTimerChangePeriod(s_timer_ctrl[timer_id].timer_handle, ticks, 0);
     }
 

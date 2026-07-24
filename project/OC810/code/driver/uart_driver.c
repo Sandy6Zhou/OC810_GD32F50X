@@ -69,6 +69,9 @@ typedef struct {
     uint8_t         rx_mode;                /**< 接收模式 */
     uint8_t         irq_enabled;            /**< 中断使能标志 */
     volatile bool  ringbuf_half_triggered;  /**< RingBuffer半满回调已触发标志（防止重复触发，中断和任务共享需临界区保护） */
+    volatile uint16_t dma_rx_last_pos;      /**< DMA RX 上次拷贝位置（用于 HTF/FTF 增量计算，仅 CIRCULAR 模式使用） */
+    volatile bool   dma_tx_active;          /**< DMA 异步发送进行中标志（ISR 回调定位用） */
+    uint16_t        dma_tx_len;             /**< 本次 DMA 异步发送长度（ISR 回调传递给应用层） */
 } drv_uart_ctrl_t;
 
 /*********************************************************************
@@ -77,15 +80,6 @@ typedef struct {
 
 /** UART控制实例数组 */
 static drv_uart_ctrl_t s_uart_ctrl[DRV_UART_PORT_MAX] = {0};
-
-/** 当前正在DMA异步发送的UART端口（用于中断回调定位） */
-static drv_uart_port_e s_current_dma_tx_port = DRV_UART_PORT_MAX;
-
-/** DMA TX全局互斥锁（保护s_current_dma_tx_port变量） */
-static SemaphoreHandle_t s_dma_tx_mutex = NULL;
-
-/** 当前正在DMA双缓冲发送的UART端口（用于中断回调定位） */
-static drv_uart_port_e s_current_ring_tx_port = DRV_UART_PORT_MAX;
 
 /** USART基地址映射表 */
 static uint32_t const s_usart_base[DRV_UART_PORT_MAX] = {
@@ -133,10 +127,10 @@ static drv_dma_channel_id_e const s_uart_rx_dma_ch[DRV_UART_PORT_MAX] = {
 
 /** UART TX DMA通道映射表（UART4无DMA） */
 static drv_dma_channel_id_e const s_uart_tx_dma_ch[DRV_UART_PORT_MAX] = {
-    DRV_DMA0_CH0,  /* USART0_TX -> DMA0_CH0 */
-    DRV_DMA0_CH5,  /* USART1_TX -> DMA0_CH5 */
-    DRV_DMA0_CH6,  /* USART2_TX -> DMA0_CH6 */
-    DRV_DMA1_CH0,  /* UART3_TX  -> DMA1_CH0 */
+    DRV_DMA0_CH5,  /* USART0_TX -> DMA0_CH5（避开CH0，ADC专用） */
+    DRV_DMA0_CH6,  /* USART1_TX -> DMA0_CH6 */
+    DRV_DMA1_CH1,  /* USART2_TX -> DMA1_CH1 */
+    DRV_DMA1_CH4,  /* UART3_TX  -> DMA1_CH4 */
     DRV_DMA_MAX    /* UART4     -> 无DMA */
 };
 
@@ -161,18 +155,59 @@ static int _drv_uart_disable_interrupt(drv_uart_port_e port);
 static int _drv_uart_enable_dma_rx(drv_uart_port_e port);
 static int _drv_uart_disable_dma_rx(drv_uart_port_e port);
 
-static void uart_dma_tx_isr_callback(void);
+static void uart_dma_tx_isr_callback(drv_dma_channel_id_e channel_id);
+static void uart_dma_rx_htf_callback(drv_dma_channel_id_e channel_id);
+static void uart_dma_rx_ftf_callback(drv_dma_channel_id_e channel_id);
 
 static int32_t _uart_ring_queue_push(drv_uart_port_e port, const uint8_t *data, uint16_t len);
 static uint16_t _uart_ring_queue_pop(drv_uart_port_e port, uint8_t *data, uint16_t max_len);
 static uint16_t _uart_ring_queue_pop_isr(drv_uart_ring_tx_ctrl_t *ring_ctrl, uint8_t *data, uint16_t max_len);
-static void uart_dma_ring_tx_htf_callback(void);
-static void uart_dma_ring_tx_ftf_callback(void);
+static void uart_dma_ring_tx_ftf_callback(drv_dma_channel_id_e channel_id);
 static int32_t _uart_send_ring_start(drv_uart_port_e port);
 
 /*********************************************************************
  * 内部辅助函数实现
  *********************************************************************/
+
+/*********************************************************************
+ * @brief   根据 RX DMA 通道号反查 UART 端口
+ * @param   channel_id  DMA 通道 ID
+ * @return  UART 端口号，未找到返回 DRV_UART_PORT_MAX
+ *********************************************************************/
+static drv_uart_port_e _uart_find_port_by_rx_dma_ch(drv_dma_channel_id_e channel_id)
+{
+    drv_uart_port_e i;
+
+    for (i = 0; i < DRV_UART_PORT_MAX; i++)
+    {
+        if (s_uart_rx_dma_ch[i] == channel_id)
+        {
+            return i;
+        }
+    }
+
+    return DRV_UART_PORT_MAX;
+}
+
+/*********************************************************************
+ * @brief   根据 TX DMA 通道号反查 UART 端口
+ * @param   channel_id  DMA 通道 ID
+ * @return  UART 端口号，未找到返回 DRV_UART_PORT_MAX
+ *********************************************************************/
+static drv_uart_port_e _uart_find_port_by_tx_dma_ch(drv_dma_channel_id_e channel_id)
+{
+    drv_uart_port_e i;
+
+    for (i = 0; i < DRV_UART_PORT_MAX; i++)
+    {
+        if (s_uart_tx_dma_ch[i] == channel_id)
+        {
+            return i;
+        }
+    }
+
+    return DRV_UART_PORT_MAX;
+}
 
 /*********************************************************************
  * @brief   检查配置参数合法性
@@ -535,7 +570,7 @@ static int _drv_uart_enable_interrupt(drv_uart_port_e port)
                     s_usart_nvic_config[port].preempt_priority,
                     s_usart_nvic_config[port].sub_priority);
 
-    DRV_UART_LOGI("UART port %d interrupts enabled, IDLE=%d, NVIC=IRQ%d (Prio=%d,%d)",
+    DRV_UART_LOGD("UART port %d interrupts enabled, IDLE=%d, NVIC=IRQ%d (Prio=%d,%d)",
                   port, ctrl->config.use_idle, s_usart_nvic_config[port].irqn,
                   s_usart_nvic_config[port].preempt_priority,
                   s_usart_nvic_config[port].sub_priority);
@@ -628,7 +663,7 @@ static int _drv_uart_enable_dma_rx(drv_uart_port_e port)
     dma_config.transfer_number = ctrl->config.dma_rx_buf_size;
     dma_config.direction = DRV_DMA_DIR_PERIPH_TO_MEMORY;
     dma_config.priority = DRV_DMA_PRIORITY_HIGH;
-    dma_config.mode = DRV_DMA_MODE_NORMAL;
+    dma_config.mode = DRV_DMA_MODE_CIRCULAR;  /* CIRCULAR：HTF+FTF+IDLE 三合一接收 */
     dma_config.periph_inc = false;
     dma_config.memory_inc = true;
 
@@ -639,14 +674,46 @@ static int _drv_uart_enable_dma_rx(drv_uart_port_e port)
         return DRV_UART_ERR_FAILED;
     }
 
+    /* 注册 HTF/FTF 回调 */
+    if (drv_dma_callback_register(dma_ch, DRV_DMA_INT_HTF, uart_dma_rx_htf_callback) != DRV_DMA_ERR_OK)
+    {
+        DRV_UART_LOGE("DMA HTF callback register failed for port %d", port);
+        drv_dma_deinit(dma_ch);
+        return DRV_UART_ERR_FAILED;
+    }
+    if (drv_dma_callback_register(dma_ch, DRV_DMA_INT_FTF, uart_dma_rx_ftf_callback) != DRV_DMA_ERR_OK)
+    {
+        DRV_UART_LOGE("DMA FTF callback register failed for port %d", port);
+        drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_HTF);
+        drv_dma_deinit(dma_ch);
+        return DRV_UART_ERR_FAILED;
+    }
+
+    /* 使能 HTF + FTF 中断 */
+    if (drv_dma_int_enable(dma_ch, DRV_DMA_INT_HTF | DRV_DMA_INT_FTF, 3) != DRV_DMA_ERR_OK)
+    {
+        DRV_UART_LOGE("DMA interrupt enable failed for port %d", port);
+        drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
+        drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_HTF);
+        drv_dma_deinit(dma_ch);
+        return DRV_UART_ERR_FAILED;
+    }
+
     /* 使能UART DMA接收请求 */
     usart_dma_receive_config(usart_base, USART_DENR_ENABLE);
+
+    /* 初始化 DMA RX 位置跟踪 */
+    ctrl->dma_rx_last_pos = 0U;
 
     /* 启动DMA传输 */
     if (drv_dma_start(dma_ch) != DRV_DMA_ERR_OK)
     {
         DRV_UART_LOGE("DMA start failed for port %d", port);
+        drv_dma_int_disable(dma_ch, DRV_DMA_INT_HTF | DRV_DMA_INT_FTF);
+        drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
+        drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_HTF);
         usart_dma_receive_config(usart_base, USART_DENR_DISABLE);
+        drv_dma_deinit(dma_ch);
         return DRV_UART_ERR_FAILED;
     }
 
@@ -682,11 +749,21 @@ static int _drv_uart_disable_dma_rx(drv_uart_port_e port)
         return 0;  /* UART4无DMA，直接返回成功 */
     }
 
+    /* 禁能 HTF + FTF 中断 */
+    drv_dma_int_disable(dma_ch, DRV_DMA_INT_HTF | DRV_DMA_INT_FTF);
+
+    /* 注销 HTF/FTF 回调 */
+    drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_HTF);
+    drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
+
     /* 停止DMA传输 */
     drv_dma_stop(dma_ch);
 
     /* 禁能UART DMA接收请求 */
     usart_dma_receive_config(usart_base, USART_DENR_DISABLE);
+
+    /* 重置位置跟踪 */
+    s_uart_ctrl[port].dma_rx_last_pos = 0U;
 
     /* 反初始化DMA通道 */
     drv_dma_deinit(dma_ch);
@@ -696,17 +773,17 @@ static int _drv_uart_disable_dma_rx(drv_uart_port_e port)
     return 0;
 }
 
-/**
- * @brief  轮询发送（所有模式的基础降级方案）
- * @param  port UART端口号
- * @param  data  发送数据缓冲区
- * @param  len   发送数据长度
- * @return 实际发送字节数
- */
+/*********************************************************************
+ * @brief   轮询发送（所有模式的基础降级方案）
+ * @param   port    UART端口号
+ * @param   data    发送数据缓冲区
+ * @param   len     发送数据长度
+ * @return  实际发送字节数
+ *********************************************************************/
 static int32_t _uart_send_polling(drv_uart_port_e port, const uint8_t *data, uint16_t len)
 {
-    uint32_t usart_base = s_usart_base[port];
     uint16_t i;
+    uint32_t usart_base = s_usart_base[port];
     TickType_t start_tick, elapsed_tick;
 
     DRV_UART_LOGD("UART port %d send %d bytes (polling mode)", port, len);
@@ -743,13 +820,13 @@ static int32_t _uart_send_polling(drv_uart_port_e port, const uint8_t *data, uin
     return len;
 }
 
-/**
- * @brief  DMA同步发送（查询硬件FTF标志）
- * @param  port UART端口号
- * @param  data  发送数据缓冲区
- * @param  len   发送数据长度
- * @return 实际发送字节数
- */
+/*********************************************************************
+ * @brief   DMA同步发送（查询硬件FTF标志）
+ * @param   port    UART端口号
+ * @param   data    发送数据缓冲区
+ * @param   len     发送数据长度
+ * @return  实际发送字节数
+ *********************************************************************/
 static int32_t _uart_send_dma_sync(drv_uart_port_e port, const uint8_t *data, uint16_t len)
 {
     uint32_t usart_base = s_usart_base[port];
@@ -859,13 +936,13 @@ static int32_t _uart_send_dma_sync(drv_uart_port_e port, const uint8_t *data, ui
     return len;
 }
 
-/**
- * @brief  DMA异步发送（FreeRTOS信号量等待）
- * @param  port UART端口号
- * @param  data  发送数据缓冲区
- * @param  len   发送数据长度
- * @return 实际发送字节数
- */
+/*********************************************************************
+ * @brief   DMA异步发送（FreeRTOS信号量等待）
+ * @param   port    UART端口号
+ * @param   data    发送数据缓冲区
+ * @param   len     发送数据长度
+ * @return  实际发送字节数
+ *********************************************************************/
 static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, uint16_t len)
 {
     uint32_t usart_base = s_usart_base[port];
@@ -892,16 +969,9 @@ static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, u
     /* 清空信号量（确保初始状态） */
     xSemaphoreTake(ctrl->tx_sem, 0);
 
-    /* 获取全局DMA TX锁（保护s_current_dma_tx_port） */
-    if (xSemaphoreTake(s_dma_tx_mutex, pdMS_TO_TICKS(UART_TX_TIMEOUT_MS)) != pdTRUE)
-    {
-        DRV_UART_LOGE("Global DMA TX mutex timeout for port %d", port);
-        drv_dma_deinit(dma_ch);
-        return DRV_UART_ERR_TIMEOUT;
-    }
-
-    /* 记录当前DMA发送端口（用于中断回调） */
-    s_current_dma_tx_port = port;
+    /* 标记本端口DMA发送进行中（ISR回调通过此标志定位端口） */
+    ctrl->dma_tx_active = true;
+    ctrl->dma_tx_len = len;
 
     /* 配置DMA参数 */
     dma_config.request_id = dma_request;
@@ -920,8 +990,7 @@ static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, u
     if (drv_dma_init(dma_ch, &dma_config) != DRV_DMA_ERR_OK)
     {
         DRV_UART_LOGE("DMA TX init failed for port %d", port);
-        /* 释放全局锁 */
-        xSemaphoreGive(s_dma_tx_mutex);
+        ctrl->dma_tx_active = false;
         return _uart_send_polling(port, data, len);
     }
 
@@ -930,7 +999,7 @@ static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, u
     {
         DRV_UART_LOGE("DMA TX interrupt enable failed for port %d", port);
         drv_dma_deinit(dma_ch);
-        xSemaphoreGive(s_dma_tx_mutex);
+        ctrl->dma_tx_active = false;
         return _uart_send_polling(port, data, len);
     }
 
@@ -940,7 +1009,7 @@ static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, u
         DRV_UART_LOGE("DMA TX callback register failed for port %d", port);
         drv_dma_int_disable(dma_ch, DRV_DMA_INT_FTF);
         drv_dma_deinit(dma_ch);
-        xSemaphoreGive(s_dma_tx_mutex);
+        ctrl->dma_tx_active = false;
         return _uart_send_polling(port, data, len);
     }
 
@@ -955,7 +1024,7 @@ static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, u
         drv_dma_int_disable(dma_ch, DRV_DMA_INT_FTF);
         drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
         drv_dma_deinit(dma_ch);
-        xSemaphoreGive(s_dma_tx_mutex);
+        ctrl->dma_tx_active = false;
         return _uart_send_polling(port, data, len);
     }
 
@@ -964,17 +1033,12 @@ static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, u
     {
         DRV_UART_LOGE("DMA TX timeout for port %d", port);
 
-        /* 停止DMA并禁能中断 */
+        /* 先清标志（防止ISR再给信号量），再停DMA */
+        ctrl->dma_tx_active = false;
         drv_dma_stop(dma_ch);
         drv_dma_int_disable(dma_ch, DRV_DMA_INT_FTF);
         usart_dma_transmit_config(usart_base, USART_DENT_DISABLE);
-
-        /* 清除标记（必须在注销回调之前） */
-        s_current_dma_tx_port = DRV_UART_PORT_MAX;
         drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
-
-        /* 释放全局锁 */
-        xSemaphoreGive(s_dma_tx_mutex);
 
         drv_dma_deinit(dma_ch);
         return DRV_UART_ERR_TIMEOUT;
@@ -998,14 +1062,11 @@ static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, u
     /* 禁能UART DMA发送请求 */
     usart_dma_transmit_config(usart_base, USART_DENT_DISABLE);
 
-    /* 清除DMA发送端口标记（必须在注销回调之前，防止中断访问） */
-    s_current_dma_tx_port = DRV_UART_PORT_MAX;
+    /* 清除本端口DMA发送标志 */
+    ctrl->dma_tx_active = false;
 
     /* 注销DMA TX回调 */
     drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
-
-    /* 释放全局DMA TX锁 */
-    xSemaphoreGive(s_dma_tx_mutex);
 
     /* 反初始化DMA通道 */
     drv_dma_deinit(dma_ch);
@@ -1013,29 +1074,59 @@ static int32_t _uart_send_dma_async(drv_uart_port_e port, const uint8_t *data, u
     return len;
 }
 
-/**
- * @brief  DMA TX 完成回调（在中断中调用）
- * @note   此函数由 dma_driver 的中断回调机制调用
- */
-static void uart_dma_tx_isr_callback(void)
+/*********************************************************************
+ * @brief   DMA TX 完成回调（在中断中调用）
+ * @param   None
+ * @note    此函数由 dma_driver 的中断回调机制调用
+ *********************************************************************/
+static void uart_dma_tx_isr_callback(drv_dma_channel_id_e channel_id)
 {
-    /* 使用静态变量精确定位发送端口 */
-    if (s_current_dma_tx_port < DRV_UART_PORT_MAX &&
-        s_uart_ctrl[s_current_dma_tx_port].tx_sem != NULL)
+    drv_uart_port_e port;
+    drv_uart_ctrl_t *ctrl;
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    /* 通过 DMA 通道号直接定位端口（无歧义） */
+    port = _uart_find_port_by_tx_dma_ch(channel_id);
+    if (port >= DRV_UART_PORT_MAX)
     {
-        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-        xSemaphoreGiveFromISR(s_uart_ctrl[s_current_dma_tx_port].tx_sem, &xHigherPriorityTaskWoken);
-        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+        return;
+    }
+
+    ctrl = &s_uart_ctrl[port];
+
+    /* 安全检查：防止超时清理后的过期 ISR 触发 */
+    if (!ctrl->dma_tx_active)
+    {
+        return;
+    }
+
+    /* 清除本端口DMA发送标志 */
+    ctrl->dma_tx_active = false;
+
+    /* 通知应用层发送完成（必须在给信号量之前调用） */
+    if (ctrl->config.tx_callback != NULL)
+    {
+        ctrl->config.tx_callback(port, ctrl->dma_tx_len);
+    }
+
+    /* 唤醒等待发送完成的任务 */
+    if (ctrl->tx_sem != NULL)
+    {
+        xSemaphoreGiveFromISR(ctrl->tx_sem, &xHigherPriorityTaskWoken);
+        if (xHigherPriorityTaskWoken)
+        {
+            portYIELD();
+        }
     }
 }
 
-/**
+/*********************************************************************
  * @brief   环形队列写入（线程安全）
  * @param   port    UART端口号
  * @param   data    数据指针
  * @param   len     数据长度
  * @return  实际写入的字节数
- */
+ *********************************************************************/
 static int32_t _uart_ring_queue_push(drv_uart_port_e port, const uint8_t *data, uint16_t len)
 {
     drv_uart_ctrl_t *ctrl = &s_uart_ctrl[port];
@@ -1082,13 +1173,13 @@ static int32_t _uart_ring_queue_push(drv_uart_port_e port, const uint8_t *data, 
     return len;
 }
 
-/**
+/*********************************************************************
  * @brief   环形队列读取（线程安全）
  * @param   port        UART端口号
  * @param   data        数据缓冲区
  * @param   max_len     最大读取长度
  * @return  实际读取的字节数
- */
+ *********************************************************************/
 static uint16_t _uart_ring_queue_pop(drv_uart_port_e port, uint8_t *data, uint16_t max_len)
 {
     drv_uart_ctrl_t *ctrl = &s_uart_ctrl[port];
@@ -1134,14 +1225,14 @@ static uint16_t _uart_ring_queue_pop(drv_uart_port_e port, uint8_t *data, uint16
     return max_len;
 }
 
-/**
+/*********************************************************************
  * @brief   环形队列读取（中断安全版本，无锁）
  * @param   ring_ctrl   环形队列控制指针
  * @param   data        数据缓冲区
  * @param   max_len     最大读取长度
  * @return  实际读取的字节数
  * @note    仅用于 FTF 中断回调，使用临界区保护计数器访问
- */
+ *********************************************************************/
 static uint16_t _uart_ring_queue_pop_isr(drv_uart_ring_tx_ctrl_t *ring_ctrl, uint8_t *data, uint16_t max_len)
 {
     uint16_t read_idx, count, i;
@@ -1182,114 +1273,202 @@ static uint16_t _uart_ring_queue_pop_isr(drv_uart_ring_tx_ctrl_t *ring_ctrl, uin
     return max_len;
 }
 
-/**
- * @brief   DMA 半传输中断回调（HTF）
- * @note    当前驱动未实现HTF优化，FTF双缓冲已满足绝大多数应用场景
- * @note    HTF优化仅在极端高频场景（>1Mbps持续数据流）下有显著收益
- */
-static void uart_dma_ring_tx_htf_callback(void)
+/*********************************************************************
+ * @brief   DMA RX 增量数据拷贝（HTF/FTF/IDLE 共用）
+ * @param   port    UART端口号
+ * @note    根据 dma_rx_last_pos 和当前 DMA 位置计算增量，写入 RingBuffer
+ * @note    仅在 ISR 上下文（HTF/FTF/IDLE）调用，单写者无竞争
+ *********************************************************************/
+static void _uart_dma_rx_copy_data(drv_uart_port_e port)
 {
-    /* HTF中断，当前阶段不处理 */
-    /* FTF双缓冲方案已能保证数据连续性，DMA停顿时间<100μs，对实际应用无影响 */
+    drv_uart_ctrl_t *ctrl = &s_uart_ctrl[port];
+    drv_dma_channel_id_e dma_ch = s_uart_rx_dma_ch[port];
+    uint16_t remaining, current_pos;
+    uint16_t buf_size = ctrl->config.dma_rx_buf_size;
+    uint16_t last_pos;
+    uint16_t copy_len;
+    uint16_t tail_len;
+
+    if (dma_ch >= DRV_DMA_MAX)
+    {
+        return;
+    }
+
+    /* 计算当前 DMA 写入位置 */
+    remaining = drv_dma_get_transfer_number(dma_ch);
+    current_pos = buf_size - remaining;  /* 0 ~ buf_size（remaining=0 时 = buf_size） */
+
+    last_pos = ctrl->dma_rx_last_pos;
+
+    if (current_pos > last_pos)
+    {
+        /* 无回绕：直接拷贝增量部分 */
+        copy_len = current_pos - last_pos;
+        if (copy_len > 0 && ctrl->config.ringbuf != NULL)
+        {
+            my_rb_write(ctrl->config.ringbuf, &ctrl->config.dma_rx_buf[last_pos], copy_len);
+        }
+    }
+    else if (current_pos < last_pos)
+    {
+        /* 回绕：先拷贝尾部，再拷贝头部 */
+        tail_len = buf_size - last_pos;
+        if (tail_len > 0 && ctrl->config.ringbuf != NULL)
+        {
+            my_rb_write(ctrl->config.ringbuf, &ctrl->config.dma_rx_buf[last_pos], tail_len);
+        }
+        if (current_pos > 0 && ctrl->config.ringbuf != NULL)
+        {
+            my_rb_write(ctrl->config.ringbuf, &ctrl->config.dma_rx_buf[0], current_pos);
+        }
+    }
+    /* current_pos == last_pos：无新数据，跳过 */
+
+    /* 更新位置（规范化：FPF 后 current_pos 可能为 buf_size，归一化到 0） */
+    ctrl->dma_rx_last_pos = (current_pos >= buf_size) ? 0U : current_pos;
 }
 
-/**
- * @brief   DMA 全传输中断回调（FTF）
- * @note    DMA 发送完成，自动切换到下一个缓冲区并继续发送
- */
-static void uart_dma_ring_tx_ftf_callback(void)
+/*********************************************************************
+ * @brief   DMA RX 半传输中断回调（HTF）
+ * @note    DMA 缓冲区半满时触发，将前半段增量拷贝到 RingBuffer，并通知任务读取
+ *********************************************************************/
+static void uart_dma_rx_htf_callback(drv_dma_channel_id_e channel_id)
 {
-    /* 使用静态变量精确定位发送端口 */
-    if (s_current_ring_tx_port < DRV_UART_PORT_MAX &&
-        s_uart_ctrl[s_current_ring_tx_port].ring_tx_ctrl != NULL)
+    drv_uart_port_e port;
+    drv_uart_ctrl_t *ctrl = NULL;
+    uint16_t ringbuf_len;
+
+    port = _uart_find_port_by_rx_dma_ch(channel_id);
+    if (port < DRV_UART_PORT_MAX)
     {
-        drv_uart_port_e port = s_current_ring_tx_port;
-        drv_uart_ctrl_t *ctrl = &s_uart_ctrl[port];
-        drv_uart_ring_tx_ctrl_t *ring_ctrl = ctrl->ring_tx_ctrl;
-        uint8_t next_buf_idx;
-        uint16_t data_len;
+        ctrl = &s_uart_ctrl[port];
 
-        /* 切换到下一个缓冲区 */
-        next_buf_idx = (ring_ctrl->current_buf_idx + 1) % 2;
+        _uart_dma_rx_copy_data(port);
 
-        /* 从环形队列预填充下一个缓冲区（中断安全版本） */
-        data_len = _uart_ring_queue_pop_isr(ring_ctrl,
-                                            &ring_ctrl->dma_tx_buf[next_buf_idx * ring_ctrl->dma_tx_buf_size],
-                                            ring_ctrl->dma_tx_buf_size);
-
-        if (data_len > 0)
+        /* 通知任务读取数据 */
+        if (ctrl->config.rx_callback != NULL && ctrl->config.ringbuf != NULL)
         {
-            /* 有数据，继续发送 */
-            ring_ctrl->current_buf_idx = next_buf_idx;
-            ring_ctrl->buf_fill_len[next_buf_idx] = data_len;
-            ring_ctrl->buf_state[next_buf_idx] = DRV_UART_DMA_BUF_TX;
-
-            DRV_UART_LOGD("FTF: Switch to buf %d, len=%d", next_buf_idx, data_len);
-
-            /* 重新配置 DMA 并启动（不重新初始化） */
-            uint32_t usart_base = s_usart_base[port];
-            drv_dma_channel_id_e dma_ch = s_uart_tx_dma_ch[port];
-            uint32_t dma_request = s_uart_dma_request[port][1];
-
-            /* 检查 DMA 通道有效性 */
-            if (dma_ch >= DRV_DMA_MAX)
+            ringbuf_len = (uint16_t)my_rb_get_data_size(ctrl->config.ringbuf);
+            if (ringbuf_len > 0)
             {
-                ring_ctrl->dma_tx_active = false;
-                s_current_ring_tx_port = DRV_UART_PORT_MAX;
-                return;
+                ctrl->config.rx_callback(port, ringbuf_len);
             }
-
-            /* 停止当前 DMA */
-            drv_dma_stop(dma_ch);
-
-            /* 重新配置 DMA 传输参数 */
-            drv_dma_deinit(dma_ch);
-
-            drv_dma_config_t dma_cfg;
-            dma_cfg.request_id = dma_request;
-            dma_cfg.periph_addr = usart_base + 0x04U;  /* DATA寄存器 */
-            dma_cfg.memory_addr = (uint32_t)&ring_ctrl->dma_tx_buf[next_buf_idx * ring_ctrl->dma_tx_buf_size];
-            dma_cfg.periph_width = DRV_DMA_WIDTH_8BIT;
-            dma_cfg.memory_width = DRV_DMA_WIDTH_8BIT;
-            dma_cfg.transfer_number = data_len;
-            dma_cfg.direction = DRV_DMA_DIR_MEMORY_TO_PERIPH;
-            dma_cfg.priority = DRV_DMA_PRIORITY_HIGH;
-            dma_cfg.mode = DRV_DMA_MODE_NORMAL;
-            dma_cfg.periph_inc = false;
-            dma_cfg.memory_inc = true;
-
-            if (drv_dma_init(dma_ch, &dma_cfg) != DRV_DMA_ERR_OK)
-            {
-                DRV_UART_LOGE("FTF: DMA re-init failed for port %d", port);
-                usart_dma_transmit_config(usart_base, USART_DENT_DISABLE);
-                ring_ctrl->dma_tx_active = false;
-                s_current_ring_tx_port = DRV_UART_PORT_MAX;
-                return;
-            }
-
-            /* 启动 DMA */
-            if (drv_dma_start(dma_ch) != DRV_DMA_ERR_OK)
-            {
-                DRV_UART_LOGE("FTF: DMA start failed for port %d", port);
-                usart_dma_transmit_config(usart_base, USART_DENT_DISABLE);
-                ring_ctrl->dma_tx_active = false;
-                s_current_ring_tx_port = DRV_UART_PORT_MAX;
-                return;
-            }
-
-            /* 保持 dma_tx_active = true，继续循环发送 */
-        }
-        else
-        {
-            /* 无数据，停止发送 */
-            DRV_UART_LOGD("FTF: No data, stop DMA for port %d", port);
-            ring_ctrl->dma_tx_active = false;
-            s_current_ring_tx_port = DRV_UART_PORT_MAX;  /* 清除标记 */
         }
     }
 }
 
-/**
+/*********************************************************************
+ * @brief   DMA RX 全传输中断回调（FTF）
+ * @note    DMA 缓冲区回绕时触发，将后半段增量拷贝到 RingBuffer，并通知任务读取
+ *********************************************************************/
+static void uart_dma_rx_ftf_callback(drv_dma_channel_id_e channel_id)
+{
+    drv_uart_port_e port;
+    drv_uart_ctrl_t *ctrl = NULL;
+    uint16_t ringbuf_len;
+
+    port = _uart_find_port_by_rx_dma_ch(channel_id);
+    if (port < DRV_UART_PORT_MAX)
+    {
+        ctrl = &s_uart_ctrl[port];
+
+        _uart_dma_rx_copy_data(port);
+
+        /* 通知任务读取数据 */
+        if (ctrl->config.rx_callback != NULL && ctrl->config.ringbuf != NULL)
+        {
+            ringbuf_len = (uint16_t)my_rb_get_data_size(ctrl->config.ringbuf);
+            if (ringbuf_len > 0)
+            {
+                ctrl->config.rx_callback(port, ringbuf_len);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @brief   DMA 环形发送 FTF 中断回调
+ * @note    当前 DMA 缓冲区发送完成后，自动切换到下一个缓冲区继续发送
+ * @note    调用时机：DMA FTF 中断触发时（缓冲区数据传输完成）
+ * @note    工作流程：
+ *          1. 校验当前发送端口有效性
+ *          2. 切换到下一个双缓冲区域
+ *          3. 从发送队列预填充数据到新缓冲区
+ *          4. 若有数据：快速重配置 DMA 继续发送
+ *          5. 若无数据：停止 DMA 发送，清除活跃标志
+ *********************************************************************/
+static void uart_dma_ring_tx_ftf_callback(drv_dma_channel_id_e channel_id)
+{
+    drv_uart_port_e port;
+    drv_uart_ctrl_t *ctrl = NULL;
+    drv_uart_ring_tx_ctrl_t *ring_ctrl = NULL;
+    uint8_t next_buf_idx;
+    uint16_t data_len;
+    uint32_t usart_base;
+    drv_dma_channel_id_e dma_ch;
+
+    /* 通过 DMA 通道号直接定位端口 */
+    port = _uart_find_port_by_tx_dma_ch(channel_id);
+    if (port >= DRV_UART_PORT_MAX || s_uart_ctrl[port].ring_tx_ctrl == NULL)
+    {
+        DRV_UART_LOGE("Ring TX control is NULL for port %d", port);
+        return;
+    }
+
+    ctrl = &s_uart_ctrl[port];
+    ring_ctrl = ctrl->ring_tx_ctrl;
+
+    /* 切换到下一个双缓冲区（0->1 或 1->0） */
+    next_buf_idx = (ring_ctrl->current_buf_idx + 1) % 2;
+
+    /* 从发送队列预填充数据到下一个缓冲区（ISR 安全版本） */
+    data_len = _uart_ring_queue_pop_isr(ring_ctrl,
+                                        &ring_ctrl->dma_tx_buf[next_buf_idx * ring_ctrl->dma_tx_buf_size],
+                                        ring_ctrl->dma_tx_buf_size);
+
+    if (data_len > 0)
+    {
+        /* 有数据待发送：更新缓冲区状态并配置 DMA */
+        ring_ctrl->current_buf_idx = next_buf_idx;
+        ring_ctrl->buf_fill_len[next_buf_idx] = data_len;
+        ring_ctrl->buf_state[next_buf_idx] = DRV_UART_DMA_BUF_TX;
+
+        DRV_UART_LOGD("FTF: Switch to buf %d, len=%d", next_buf_idx, data_len);
+
+        /* 获取硬件资源标识 */
+        usart_base = s_usart_base[port];
+        dma_ch = s_uart_tx_dma_ch[port];
+
+        /* 校验 DMA 通道有效性 */
+        if (dma_ch >= DRV_DMA_MAX)
+        {
+            DRV_UART_LOGE("FTF: Invalid DMA channel for port %d", port);
+            ring_ctrl->dma_tx_active = false;
+            return;
+        }
+
+        /* 快速重配置 DMA：仅更新内存地址和传输数量（ISR 安全） */
+        if (drv_dma_reconfig_fast(dma_ch,
+                                    (uint32_t)&ring_ctrl->dma_tx_buf[next_buf_idx * ring_ctrl->dma_tx_buf_size],
+                                    data_len) != DRV_DMA_ERR_OK)
+        {
+            DRV_UART_LOGE("FTF: DMA reconfig failed for port %d", port);
+            usart_dma_transmit_config(usart_base, USART_DENT_DISABLE);
+            ring_ctrl->dma_tx_active = false;
+            return;
+        }
+
+        /* DMA 重配置成功，保持 dma_tx_active = true，继续循环发送 */
+    }
+    else
+    {
+        /* 发送队列已空：停止 DMA 发送，清除活跃标志 */
+        DRV_UART_LOGD("FTF: No data, stop DMA for port %d", port);
+        ring_ctrl->dma_tx_active = false;
+    }
+}
+
+/*********************************************************************
  * @brief   中断发送模式（TXE中断，无需DMA）
  * @param   port    UART端口号
  * @param   data    发送数据缓冲区
@@ -1298,7 +1477,7 @@ static void uart_dma_ring_tx_ftf_callback(void)
  * @note    数据写入TX缓冲区，使能TXE中断，由中断逐字节发送
  * @note    TX缓冲区为线性缓冲区（非环形），每次发送必须等待上一次完成
  * @note    适合中等频率发送场景，高频连续发送建议使用DMA_DUAL_BUF模式
- */
+ *********************************************************************/
 static int32_t _uart_send_interrupt(drv_uart_port_e port, const uint8_t *data, uint16_t len)
 {
     drv_uart_ctrl_t *ctrl = &s_uart_ctrl[port];
@@ -1351,11 +1530,11 @@ static int32_t _uart_send_interrupt(drv_uart_port_e port, const uint8_t *data, u
     return len;
 }
 
-/**
+/*********************************************************************
  * @brief   TXE中断处理（在中断中调用）
  * @param   port    UART端口号
  * @note    逐字节从TX缓冲区取数据写入DR寄存器
- */
+ *********************************************************************/
 static void _uart_tx_irq_handler(drv_uart_port_e port)
 {
     drv_uart_ctrl_t *ctrl = &s_uart_ctrl[port];
@@ -1401,11 +1580,11 @@ static void _uart_tx_irq_handler(drv_uart_port_e port)
     taskEXIT_CRITICAL();
 }
 
-/**
- * @brief   启动 DMA RING 发送
+/*********************************************************************
+ * @brief   启动 DMA 双缓冲发送
  * @param   port    UART端口号
  * @return  0=成功，<0=失败
- */
+ *********************************************************************/
 static int32_t _uart_send_ring_start(drv_uart_port_e port)
 {
     drv_uart_ctrl_t *ctrl = &s_uart_ctrl[port];
@@ -1458,23 +1637,19 @@ static int32_t _uart_send_ring_start(drv_uart_port_e port)
 
     /* 注册回调 */
     drv_dma_callback_register(dma_ch, DRV_DMA_INT_FTF, uart_dma_ring_tx_ftf_callback);
-    drv_dma_callback_register(dma_ch, DRV_DMA_INT_HTF, uart_dma_ring_tx_htf_callback);
 
     /* 使能 UART DMA 发送 */
     usart_dma_transmit_config(usart_base, USART_DENT_ENABLE);
 
     /* 使能 DMA 中断 */
     drv_dma_int_enable(dma_ch, DRV_DMA_INT_FTF, 3);
-    drv_dma_int_enable(dma_ch, DRV_DMA_INT_HTF, 3);
 
     /* 启动 DMA */
     if (drv_dma_start(dma_ch) != DRV_DMA_ERR_OK)
     {
         usart_dma_transmit_config(usart_base, USART_DENT_DISABLE);
         drv_dma_int_disable(dma_ch, DRV_DMA_INT_FTF);
-        drv_dma_int_disable(dma_ch, DRV_DMA_INT_HTF);
         drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
-        drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_HTF);
         drv_dma_deinit(dma_ch);
         return DRV_UART_ERR_FAILED;
     }
@@ -1485,7 +1660,6 @@ static int32_t _uart_send_ring_start(drv_uart_port_e port)
     ring_ctrl->buf_fill_len[0] = data_len;
     ring_ctrl->buf_state[0] = DRV_UART_DMA_BUF_TX;
     ring_ctrl->buf_state[1] = DRV_UART_DMA_BUF_IDLE;
-    s_current_ring_tx_port = port;  /* 记录当前端口 */
 
     return data_len;
 }
@@ -1646,18 +1820,6 @@ int drv_uart_init(const drv_uart_config_t *config)
             break;
 
         case UART_TX_MODE_DMA_ASYNC:
-            /* 创建全局DMA TX互斥锁（仅首次） */
-            if (s_dma_tx_mutex == NULL)
-            {
-                s_dma_tx_mutex = xSemaphoreCreateMutex();
-                if (s_dma_tx_mutex == NULL)
-                {
-                    DRV_UART_LOGE("Failed to create global DMA TX mutex");
-                    return DRV_UART_ERR_FAILED;
-                }
-                DRV_UART_LOGD("Global DMA TX mutex created");
-            }
-
             /* 创建DMA TX完成信号量 */
             ctrl->tx_sem = xSemaphoreCreateBinary();
             if (ctrl->tx_sem == NULL)
@@ -1845,10 +2007,43 @@ int drv_uart_deinit(drv_uart_port_e port)
     /* 关闭中断 */
     _drv_uart_disable_interrupt(port);
 
-    /* 关闭DMA */
+    /* 关闭DMA RX */
     if (ctrl->config.use_dma_rx == true)
     {
         _drv_uart_disable_dma_rx(port);
+    }
+
+    /* 清理进行中的 DMA TX（异步模式） */
+    if (ctrl->tx_mode == UART_TX_MODE_DMA_ASYNC && ctrl->dma_tx_active)
+    {
+        drv_dma_channel_id_e dma_ch = s_uart_tx_dma_ch[port];
+        uint32_t usart_base = s_usart_base[port];
+
+        DRV_UART_LOGW("DMA TX active on port %d, forcing stop", port);
+
+        ctrl->dma_tx_active = false;
+        drv_dma_stop(dma_ch);
+        drv_dma_int_disable(dma_ch, DRV_DMA_INT_FTF);
+        usart_dma_transmit_config(usart_base, USART_DENT_DISABLE);
+        drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
+        drv_dma_deinit(dma_ch);
+    }
+
+    /* 清理进行中的 DMA TX（双缓冲模式） */
+    if (ctrl->tx_mode == UART_TX_MODE_DMA_DUAL_BUF && ctrl->ring_tx_ctrl != NULL
+        && ctrl->ring_tx_ctrl->dma_tx_active)
+    {
+        drv_dma_channel_id_e dma_ch = s_uart_tx_dma_ch[port];
+        uint32_t usart_base = s_usart_base[port];
+
+        DRV_UART_LOGW("DMA ring TX active on port %d, forcing stop", port);
+
+        ctrl->ring_tx_ctrl->dma_tx_active = false;
+        drv_dma_stop(dma_ch);
+        drv_dma_int_disable(dma_ch, DRV_DMA_INT_FTF);
+        usart_dma_transmit_config(usart_base, USART_DENT_DISABLE);
+        drv_dma_callback_unregister(dma_ch, DRV_DMA_INT_FTF);
+        drv_dma_deinit(dma_ch);
     }
 
     /* 硬件去初始化 */
@@ -2057,6 +2252,9 @@ int drv_uart_read(drv_uart_port_e port, uint8_t *data, uint16_t len)
     int read_len = 0;
     uint32_t ringbuf_used_size;
     uint32_t ringbuf_threshold;
+    uint16_t available_len;
+    uint16_t i;
+    uint16_t copy_len;
 
     /* 断言检查：参数合法性 */
     DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
@@ -2119,9 +2317,6 @@ int drv_uart_read(drv_uart_port_e port, uint8_t *data, uint16_t len)
     {
         /* 从基础接收缓存读取（循环缓冲区） */
         /* 计算可读取的数据长度 */
-        uint16_t available_len;
-        uint16_t i;
-
         if (ctrl->rx_write_index >= ctrl->rx_read_index)
         {
             /* 写指针在读指针之后或相等 */
@@ -2134,8 +2329,7 @@ int drv_uart_read(drv_uart_port_e port, uint8_t *data, uint16_t len)
         }
 
         /* 取期望长度和可用长度的较小值 */
-        uint16_t copy_len = (len < available_len) ? len : available_len;
-
+        copy_len = (len < available_len) ? len : available_len;
         if (copy_len == 0)
         {
             DRV_UART_LOGD("UART port %d no data available", port);
@@ -2455,6 +2649,9 @@ void drv_uart_irq_handler(drv_uart_port_e port)
     uint32_t int0;
     uint32_t ringbuf_used_size;
     uint32_t ringbuf_threshold;
+    uint16_t next_write_idx;
+    drv_dma_channel_id_e dma_ch;
+    uint32_t err_flags;
 
     /* 断言检查：端口号必须合法 */
     DRV_UART_ASSERT(port < DRV_UART_PORT_MAX);
@@ -2508,7 +2705,7 @@ void drv_uart_irq_handler(drv_uart_port_e port)
                 /* 非DMA + rx_buf模式（循环缓冲区） */
             {
                 /* 计算下一个写指针位置 */
-                uint16_t next_write_idx = (ctrl->rx_write_index + 1) % ctrl->config.rx_buf_size;
+                next_write_idx = (ctrl->rx_write_index + 1) % ctrl->config.rx_buf_size;
 
                 /* 检查是否会覆盖未读数据 */
                 if (next_write_idx == ctrl->rx_read_index)
@@ -2543,73 +2740,22 @@ void drv_uart_irq_handler(drv_uart_port_e port)
         /* 如果启用DMA接收，计算DMA已接收的数据长度 */
         if (ctrl->config.use_dma_rx == true)
         {
-            drv_dma_channel_id_e dma_ch = s_uart_rx_dma_ch[port];
+            dma_ch = s_uart_rx_dma_ch[port];
 
-            /* 获取DMA剩余计数，计算已接收长度 */
+            /* 增量拷贝：根据 dma_rx_last_pos 和当前 DMA 位置计算新数据，写入 RingBuffer */
             if (dma_ch < DRV_DMA_MAX)
             {
-                uint32_t dma_periph;
-                dma_channel_enum dma_ch_enum;
-                uint16_t remaining_count;
+                _uart_dma_rx_copy_data(port);
 
-                /* 获取DMA外设基地址和通道枚举 */
-                if (dma_ch < DRV_DMA1_CH0)
+                /* CIRCULAR 模式：DMA 不停止，仅读 RingBuffer 当前数据量作为回调参数 */
+                if (ctrl->config.use_ringbuf == true && ctrl->config.ringbuf != NULL)
                 {
-                    /* DMA0 通道 */
-                    dma_periph = DMA0;
-                    dma_ch_enum = (dma_channel_enum)dma_ch;
+                    dma_len = (uint16_t)my_rb_get_data_size(ctrl->config.ringbuf);
                 }
-                else
-                {
-                    /* DMA1 通道 */
-                    dma_periph = DMA1;
-                    dma_ch_enum = (dma_channel_enum)(dma_ch - DRV_DMA1_CH0);
-                }
-
-                /* 计算已接收长度 = 总长度 - 剩余计数 */
-                remaining_count = (uint16_t)dma_transfer_number_get(dma_periph, dma_ch_enum);
-                dma_len = ctrl->config.dma_rx_buf_size - remaining_count;
-
             }
             else
             {
                 dma_len = 0;  /* UART4无DMA */
-            }
-
-            /* 将DMA缓冲区数据写入RingBuffer */
-            if (ctrl->config.use_ringbuf == true && ctrl->config.ringbuf != NULL)
-            {
-                if (dma_len > 0)
-                {
-                    my_rb_write(ctrl->config.ringbuf, ctrl->config.dma_rx_buf, dma_len);
-                }
-            }
-
-            /* 重启DMA接收 */
-            drv_dma_channel_id_e restart_dma_ch = s_uart_rx_dma_ch[port];
-            if (restart_dma_ch < DRV_DMA_MAX)
-            {
-                /* 先停止 DMA */
-                drv_dma_stop(restart_dma_ch);
-
-                /* 重新配置传输数量 */
-                uint32_t restart_dma_periph;
-                dma_channel_enum restart_dma_ch_enum;
-
-                if (restart_dma_ch < DRV_DMA1_CH0)
-                {
-                    restart_dma_periph = DMA0;
-                    restart_dma_ch_enum = (dma_channel_enum)restart_dma_ch;
-                }
-                else
-                {
-                    restart_dma_periph = DMA1;
-                    restart_dma_ch_enum = (dma_channel_enum)(restart_dma_ch - DRV_DMA1_CH0);
-                }
-
-                /* 直接重新启动 DMA（不需要重新 init） */
-                dma_transfer_number_config(restart_dma_periph, restart_dma_ch_enum, ctrl->config.dma_rx_buf_size);
-                drv_dma_start(restart_dma_ch);
             }
         }
         else
@@ -2648,7 +2794,7 @@ void drv_uart_irq_handler(drv_uart_port_e port)
      */
     if (ctrl->irq_enabled & DRV_UART_IRQ_ERR)
     {
-        uint32_t err_flags = stat0 & (USART_STAT0_FERR | USART_STAT0_ORERR |
+        err_flags = stat0 & (USART_STAT0_FERR | USART_STAT0_ORERR |
                                        USART_STAT0_NERR);
         if (err_flags)
         {
