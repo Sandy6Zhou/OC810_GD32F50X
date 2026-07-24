@@ -98,6 +98,16 @@ typedef enum
     MY_MSG_ID_RTC_SET_TIME,               /**< RTC设置时间（data携带timestamp） */
     MY_MSG_ID_RTC_SET_CALENDAR,           /**< RTC设置日历（data携带struct tm指针，需MY_FREE） */
 
+    /* MY_CTRL模块消息 */
+    MY_MSG_ID_CTRL_ACC_CHANGE,          /**< ACC 状态变化（立即） */
+    MY_MSG_ID_CTRL_INPUT_CHANGE,        /**< 数字输入变化（消抖后） */
+    MY_MSG_ID_CTRL_START_ADC,           /**< 定时器触发启动ADC采样 */
+    MY_MSG_ID_CTRL_ADC_DONE,            /**< ADC DMA 转换完成 */
+    MY_MSG_ID_CTRL_OUTPUT_SET,          /**< 通用输出控制 */
+    MY_MSG_ID_CTRL_PWR_SET,             /**< 电源开关控制 */
+    MY_MSG_ID_CTRL_LED_SET,             /**< LED 控制 */
+    MY_MSG_ID_CTRL_BUZZER_SET,          /**< 蜂鸣器控制 */
+
     /* AMS/GNSS/CAN等模块消息按需扩展 */
 
     MY_MSG_ID_MAX                   /**< 消息ID最大值 */
@@ -126,6 +136,8 @@ typedef struct my_msg
 #define MY_TIMER_ID_DVR_PARSE_TIMEOUT     MY_TIMER_ID_SLOT_2   /**< DVR协议解析超时（2秒） */
 #define MY_TIMER_ID_DVR_SEND_HEARTBEAT    MY_TIMER_ID_SLOT_3   /**< DVR发送心跳包（1秒） */
 #define MY_TIMER_ID_DVR_WAIT_HEARTBEAT    MY_TIMER_ID_SLOT_4   /**< DVR心跳超时检测（90秒） */
+#define MY_TIMER_ID_CTRL_INPUT_DEBOUNCE   MY_TIMER_ID_SLOT_5   /**< 控制输入去抖（20毫秒） */
+#define MY_TIMER_ID_CTRL_ADC_SAMPLE_INTERVAL       MY_TIMER_ID_SLOT_6   /**< ADC采样周期（1秒） */
 
 /*********************************************************************
  * 公共数据结构定义（预留扩展）

@@ -196,6 +196,14 @@ int32_t drv_dma_start(drv_dma_channel_id_e channel_id);
 int32_t drv_dma_stop(drv_dma_channel_id_e channel_id);
 
 /**
+ * @brief  禁能 DMA 通道（寄存器操作，ISR 安全）
+ * @param  channel_id DMA 通道 ID
+ * @return none
+ * @note   仅操作寄存器，不更新状态、不打印日志，适用于中断上下文
+ */
+void drv_dma_channel_disable(drv_dma_channel_id_e channel_id);
+
+/**
  * @brief  注册 DMA 中断回调函数
  * @param  channel_id DMA 通道 ID
  * @param  int_type 中断类型（FTF/HTF/ERR）

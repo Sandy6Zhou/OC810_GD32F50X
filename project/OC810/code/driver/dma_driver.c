@@ -314,7 +314,7 @@ int32_t drv_dma_init(drv_dma_channel_id_e channel_id, drv_dma_config_t *config)
     /* 更新状态 */
     s_dma_ctrl[channel_id].state = DRV_DMA_STATE_INITIALIZED;
 
-    DRV_DMA_LOGI("Channel %d initialized", channel_id);
+    DRV_DMA_LOGD("Channel %d initialized", channel_id);
     return DRV_DMA_ERR_OK;
 }
 
@@ -344,7 +344,7 @@ int32_t drv_dma_deinit(drv_dma_channel_id_e channel_id)
     s_dma_ctrl[channel_id].err_callback = NULL;
     s_dma_ctrl[channel_id].nvic_priority = 0;
 
-    DRV_DMA_LOGI("Channel %d deinitialized", channel_id);
+    DRV_DMA_LOGD("Channel %d deinitialized", channel_id);
     return DRV_DMA_ERR_OK;
 }
 
@@ -373,7 +373,7 @@ int32_t drv_dma_start(drv_dma_channel_id_e channel_id)
     /* 更新状态 */
     s_dma_ctrl[channel_id].state = DRV_DMA_STATE_RUNNING;
 
-    DRV_DMA_LOGI("Channel %d started", channel_id);
+    DRV_DMA_LOGD("Channel %d started", channel_id);
     return DRV_DMA_ERR_OK;
 }
 
@@ -402,8 +402,25 @@ int32_t drv_dma_stop(drv_dma_channel_id_e channel_id)
     /* 更新状态 */
     s_dma_ctrl[channel_id].state = DRV_DMA_STATE_INITIALIZED;
 
-    DRV_DMA_LOGI("Channel %d stopped", channel_id);
+    DRV_DMA_LOGD("Channel %d stopped", channel_id);
     return DRV_DMA_ERR_OK;
+}
+
+/*********************************************************************
+ * @brief   禁能 DMA 通道（寄存器操作，ISR 安全）
+ * @param   channel_id DMA 通道 ID
+ * @return  none
+ * @note    仅操作寄存器，不更新状态、不打印日志，适用于中断上下文
+ *********************************************************************/
+void drv_dma_channel_disable(drv_dma_channel_id_e channel_id)
+{
+    if (channel_id >= DRV_DMA_MAX)
+    {
+        return;
+    }
+
+    dma_channel_disable(s_dma_ctrl[channel_id].dma_periph,
+                        (dma_channel_enum)s_dma_ctrl[channel_id].channel_index);
 }
 
 /*********************************************************************
@@ -532,7 +549,7 @@ int32_t drv_dma_int_enable(drv_dma_channel_id_e channel_id,
     /* 配置 NVIC 中断优先级 */
     nvic_irq_enable(s_dma_ctrl[channel_id].nvic_irqn, nvic_priority, 0);
 
-    DRV_DMA_LOGI("Channel %d interrupt enabled (type=0x%02X, priority=%d)",
+    DRV_DMA_LOGD("Channel %d interrupt enabled (type=0x%02X, priority=%d)",
                  channel_id, int_type, nvic_priority);
     return DRV_DMA_ERR_OK;
 }
@@ -573,7 +590,7 @@ int32_t drv_dma_int_disable(drv_dma_channel_id_e channel_id,
                           (dma_channel_enum)s_dma_ctrl[channel_id].channel_index,
                           dma_int);
 
-    DRV_DMA_LOGI("Channel %d interrupt disabled (type=0x%02X)", channel_id, int_type);
+    DRV_DMA_LOGD("Channel %d interrupt disabled (type=0x%02X)", channel_id, int_type);
     return DRV_DMA_ERR_OK;
 }
 

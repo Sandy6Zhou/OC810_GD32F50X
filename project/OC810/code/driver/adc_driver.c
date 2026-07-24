@@ -321,7 +321,7 @@ int drv_adc_init(const drv_adc_config_t *config)
         }
     }
 
-    DRV_ADC_LOGI("drv_adc_init port %d success", config->port);
+    DRV_ADC_LOGD("drv_adc_init port %d success", config->port);
 
     return DRV_ADC_ERR_OK;
 }
@@ -391,7 +391,7 @@ int drv_adc_deinit(drv_adc_port_e port)
     /* 清除状态 */
     memset(&s_adc_ctrl[port].state, 0, sizeof(drv_adc_state_t));
 
-    DRV_ADC_LOGI("drv_adc_deinit port %d success", port);
+    DRV_ADC_LOGD("drv_adc_deinit port %d success", port);
 
     return DRV_ADC_ERR_OK;
 }
@@ -734,7 +734,7 @@ int32_t drv_adc_enable(drv_adc_port_e port)
     /* 使能ADC */
     adc_enable(adc_periph);
 
-    DRV_ADC_LOGI("drv_adc_enable port %d", port);
+    DRV_ADC_LOGD("drv_adc_enable port %d", port);
 
     return DRV_ADC_ERR_OK;
 }
@@ -761,7 +761,10 @@ int32_t drv_adc_disable(drv_adc_port_e port)
     /* 禁能ADC */
     adc_disable(adc_periph);
 
-    DRV_ADC_LOGI("drv_adc_disable port %d", port);
+    /* 清除转换状态标记（ADC已禁能，转换不可能在进行） */
+    s_adc_ctrl[port].state.is_converting = false;
+
+    DRV_ADC_LOGD("drv_adc_disable port %d", port);
 
     return DRV_ADC_ERR_OK;
 }
@@ -1131,12 +1134,12 @@ int drv_adc_watchdog_config(drv_adc_port_e port, drv_adc_channel_e channel,
             nvic_irq_enable(ADC2_IRQn, 6, 0);
         }
 
-        DRV_ADC_LOGI("drv_adc_watchdog_config port %d channel %d low %d high %d (interrupt enabled)",
+        DRV_ADC_LOGD("drv_adc_watchdog_config port %d channel %d low %d high %d (interrupt enabled)",
                      port, channel, low_threshold, high_threshold);
     }
     else
     {
-        DRV_ADC_LOGI("drv_adc_watchdog_config port %d channel %d low %d high %d (no interrupt)",
+        DRV_ADC_LOGD("drv_adc_watchdog_config port %d channel %d low %d high %d (no interrupt)",
                      port, channel, low_threshold, high_threshold);
     }
 
@@ -1173,7 +1176,7 @@ int drv_adc_dma_mode_enable(drv_adc_port_e port)
     /* 使能DMA请求 */
     adc_dma_mode_enable(adc_periph, ADC_ROUTINE_CHANNEL);
 
-    DRV_ADC_LOGI("drv_adc_dma_mode_enable port %d", port);
+    DRV_ADC_LOGD("drv_adc_dma_mode_enable port %d", port);
 
     return DRV_ADC_ERR_OK;
 }
@@ -1206,7 +1209,7 @@ int drv_adc_dma_mode_disable(drv_adc_port_e port)
     /* 禁能DMA请求 */
     adc_dma_mode_disable(adc_periph, ADC_ROUTINE_CHANNEL);
 
-    DRV_ADC_LOGI("drv_adc_dma_mode_disable port %d", port);
+    DRV_ADC_LOGD("drv_adc_dma_mode_disable port %d", port);
 
     return DRV_ADC_ERR_OK;
 }
